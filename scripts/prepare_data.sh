@@ -79,6 +79,20 @@ if [ "$SKIP_EXTRACT" = false ]; then
         for zip_file in "${ZIP_FILES[@]}"; do
             fname=$(basename "$zip_file")
             echo ""
+
+            # 先探测zip内的顶层目录名
+            top_dir=$(unzip -l "$zip_file" 2>/dev/null | awk 'NR>3 && NF==4 {print $NF}' | head -1 | cut -d'/' -f1)
+            if [ -z "$top_dir" ]; then
+                top_dir=$(unzip -l "$zip_file" 2>/dev/null | awk 'NR>3 && NF==4 {print $NF}' | head -1 | awk -F'/' '{print $1}')
+            fi
+
+            # 检查是否已解压过
+            if [ -n "$top_dir" ] && [ -d "$RAW_DIR/$top_dir" ] && [ "$(ls -A "$RAW_DIR/$top_dir" 2>/dev/null)" ]; then
+                file_count=$(find "$RAW_DIR/$top_dir" -type f 2>/dev/null | wc -l)
+                echo -e "  ${GREEN}跳过: $fname (已解压到 $RAW_DIR/$top_dir, $file_count 个文件)${NC}"
+                continue
+            fi
+
             echo -e "  ${YELLOW}解压: $fname${NC}"
 
             # 创建临时解压目录
