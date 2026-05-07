@@ -8,59 +8,59 @@
 # ------------------- Training -------------------
 model: yolo26n.pt           # pretrained YOLO26n weights (auto-download)
 data: configs/visdrone.yaml # dataset config
-epochs: 300                 # total training epochs
-patience: 50                # early stopping patience (0=disable)
-batch: 32                   # batch size per GPU (-1 for auto)
-imgsz: 640                  # input image size
+epochs: 100                 # total training epochs (reduced: overfitting started at epoch 4-6)
+patience: 15                # early stopping patience (reduced: stop sooner on overfitting)
+batch: 32                   # batch size per GPU (2x→halve iterations; more stable gradients)
+imgsz: 512                  # input image size (512²=36% less compute vs 640, enables batch×2)
 optimizer: MuSGD            # YOLO26 MuSGD optimizer
-lr0: 0.01                   # initial learning rate
-lrf: 0.01                   # final learning rate = lr0 * lrf
+lr0: 0.003                  # initial learning rate (reduced: small model needs lower LR)
+lrf: 0.001                  # final learning rate = lr0 * lrf (much lower final LR for stability)
 momentum: 0.937             # SGD momentum
-weight_decay: 0.0005        # optimizer weight decay
-warmup_epochs: 3.0          # warmup epochs (fraction ok)
+weight_decay: 0.001         # optimizer weight decay (increased L2 regularization)
+warmup_epochs: 3.0          # warmup epochs (shorter: less overhead)
 warmup_momentum: 0.8        # warmup initial momentum
 warmup_bias_lr: 0.1         # warmup initial bias lr
 
 # ------------------- Augmentation -------------------
-# UAV-specific augmentation strategy
-hsv_h: 0.02                 # hue augmentation (higher for UAV lighting changes)
-hsv_s: 0.8                  # saturation (higher for weather variation)
-hsv_v: 0.5                  # value/brightness
-degrees: 10.0               # rotation (+/- deg) - moderate for UAV
-translate: 0.15             # translation (+/- fraction)
-scale: 0.6                  # scale gain (+/- gain) - wider for UAV distance changes
-shear: 1.0                  # shear (+/- deg)
-perspective: 0.0005         # perspective (+/- fraction) - simulates UAV angle
+# UAV-specific augmentation strategy (trimmed for speed while keeping small-object gains)
+hsv_h: 0.03                 # hue augmentation
+hsv_s: 0.7                  # saturation (slightly reduced)
+hsv_v: 0.5                  # value/brightness (slightly reduced)
+degrees: 10.0               # rotation (+/- deg) - reduced for speed
+translate: 0.15             # translation (+/- fraction, reduced)
+scale: 0.5                  # scale gain (+/- gain) - reduced for speed
+shear: 1.0                  # shear (+/- deg, reduced)
+perspective: 0.0            # perspective (DISABLED: expensive, marginal UAV benefit)
 flipud: 0.0                 # upside-down flip probability (DISABLED for UAV)
 fliplr: 0.5                 # left-right flip probability
-mosaic: 1.0                 # mosaic augmentation probability
-mixup: 0.1                  # mixup augmentation probability
-copy_paste: 0.1             # segment copy-paste (for small objects)
+mosaic: 0.8                 # mosaic probability (slightly reduced: save 20% mosaic overhead)
+mixup: 0.1                  # mixup probability (slightly reduced)
+copy_paste: 0.1             # segment copy-paste (slightly reduced)
 
 # ------------------- Loss -------------------
-box: 7.5                    # box loss weight (higher for precise localization)
-cls: 0.5                    # cls loss weight
+box: 5.0                    # box loss weight (reduced: prevents over-fitting to localization)
+cls: 0.7                    # cls loss weight (increased: better classification signal)
 dfl: 1.5                    # dfl loss weight
 
 # ------------------- Validation -------------------
 val: True                   # validate during training
-save_period: 10             # save checkpoint every N epochs
+save_period: 5              # save checkpoint every N epochs (more frequent saves)
 plots: True                 # save plots during training
-close_mosaic: 10            # disable mosaic augmentation for last N epochs
+close_mosaic: 10            # disable mosaic augmentation for last N epochs (longer finetuning)
 
 # ------------------- Advanced -------------------
 device: 0                   # GPU device (0,1,2,3 or cpu)
-workers: 8                  # dataloader workers per GPU
-cache: False                # cache images in RAM (requires ~30GB for VisDrone)
-rect: False                 # rectangular training
+workers: 12                 # dataloader workers per GPU (increased: better CPU→GPU pipeline)
+cache: True                 # cache images in RAM (~12GB for VisDrone at 512 res, 30s preload)
+rect: True                  # rectangular training (minimal padding, less wasted compute)
 cos_lr: True                # cosine LR scheduler
-label_smoothing: 0.0        # label smoothing epsilon
+label_smoothing: 0.1        # label smoothing (prevents classifier overconfidence)
 nbs: 64                     # nominal batch size
 overlap_mask: True          # mask overlap during training
 mask_ratio: 4               # mask downsample ratio
-dropout: 0.0                # dropout rate
+dropout: 0.1                # dropout rate (add regularization, reduce overfitting)
 seed: 42                    # random seed
 single_cls: False           # train as single-class
-fraction: 1.0               # fraction of dataset to use
+fraction: 0.4               # fraction of dataset to use (further reduced for faster epochs)
 profile: False              # profile ONNX and TensorRT speeds
 freeze: null                # freeze first N layers (null=no freeze)
