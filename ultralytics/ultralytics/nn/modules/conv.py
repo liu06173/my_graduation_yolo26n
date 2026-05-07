@@ -750,23 +750,19 @@ class WeightedConcat(nn.Module):
 
     Args:
         dimension (int): Dimension along which to concatenate (default: 1).
+        num_inputs (int): Number of input tensors to fuse (default: 2).
 
     Reference: https://arxiv.org/abs/1911.09070 (EfficientDet / BiFPN)
     """
 
-    def __init__(self, dimension=1):
+    def __init__(self, dimension=1, num_inputs=2):
         super().__init__()
         self.d = dimension
-        self.w = None
-        self.eps = 1e-4
+        self.w = nn.Parameter(torch.ones(num_inputs))
 
     def forward(self, x):
         if isinstance(x, torch.Tensor):
             return x
-        n = len(x)
-        if self.w is None or len(self.w) != n:
-            self.w = nn.Parameter(torch.ones(n), requires_grad=True)
-            self.w = self.w.to(x[0].device)
         w_norm = torch.softmax(self.w, dim=0)
         weighted = [xi * w_norm[i] for i, xi in enumerate(x)]
         return torch.cat(weighted, self.d)
@@ -806,16 +802,15 @@ class DySample(nn.Module):
         offset = self.offset_gen(x)
         offset = nn.functional.interpolate(offset, size=(H * s, W * s),
                                             mode='bilinear', align_corners=False)
-        offset = offset.view(B, s, s, 2, H * s, W * s).permute(0, 1, 3, 2, 4, 5)
-        offset = offset.reshape(B, 2, H * s, W * s)
+        offset = offset.view(B, s * s, 2, H * s, W * s).mean(dim=1)
         gy, gx = torch.meshgrid(
-            torch.arange(H * s, device=x.device),
-            torch.arange(W * s, device=x.device),
+            torch.arange(H * s, device=x.device, dtype=torch.float32),
+            torch.arange(W * s, device=x.device, dtype=torch.float32),
             indexing='ij',
         )
         grid = torch.stack([
-            gx.float() / (W * s - 1) * 2 - 1 + offset[:, 0],
-            gy.float() / (H * s - 1) * 2 - 1 + offset[:, 1],
-        ], dim=-1).unsqueeze(0).expand(B, -1, -1, -1)
+            gx / (W * s - 1) * 2 - 1 + offset[:, 0] * 0.25 / max(W, 1),
+            gy / (H * s - 1) * 2 - 1 + offset[:, 1] * 0.25 / max(H, 1),
+        ], dim=-1)
         return nn.functional.grid_sample(x, grid, mode='bilinear',
                                           padding_mode='border', align_corners=False)

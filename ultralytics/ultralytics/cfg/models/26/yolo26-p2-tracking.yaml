@@ -33,24 +33,24 @@ backbone:
 head:
   # FPN top-down (4-scale)
   - [-1, 1, DySample, [512, 2]]                                    # 13  upsample P5→P4
-  - [[-1, 8], 1, WeightedConcat, [1]]                               # 14  weighted cat + backbone P4
+  - [[-1, 8], 1, WeightedConcat, [1, 2]]                               # 14  weighted cat + backbone P4
   - [-1, 2, C3k2, [512, True]]                                     # 15
   - [-1, 1, DySample, [256, 2]]                                    # 16  upsample→P3
-  - [[-1, 5], 1, WeightedConcat, [1]]                               # 17  weighted cat + backbone P3
+  - [[-1, 5], 1, WeightedConcat, [1, 2]]                               # 17  weighted cat + backbone P3
   - [-1, 2, C3k2, [256, True]]                                     # 18  (P3/8-small)
   - [-1, 1, DySample, [128, 2]]                                    # 19  upsample→P2
-  - [[-1, 2], 1, WeightedConcat, [1]]                               # 20  weighted cat + backbone P2
+  - [[-1, 2], 1, WeightedConcat, [1, 2]]                               # 20  weighted cat + backbone P2
   - [-1, 2, C3k2, [128, True]]                                     # 21  (P2/4-xsmall)
 
   # PAN bottom-up (4-scale)
   - [-1, 1, Conv, [128, 3, 2]]                                     # 22  downsample P2→P3
-  - [[-1, 18], 1, WeightedConcat, [1]]                              # 23  weighted cat + head P3
+  - [[-1, 18], 1, WeightedConcat, [1, 2]]                              # 23  weighted cat + head P3
   - [-1, 2, C3k2, [256, True]]                                     # 24  (P3/8-small)
   - [-1, 1, Conv, [256, 3, 2]]                                     # 25  downsample→P4
-  - [[-1, 15], 1, WeightedConcat, [1]]                              # 26  weighted cat + head P4
+  - [[-1, 15], 1, WeightedConcat, [1, 2]]                              # 26  weighted cat + head P4
   - [-1, 2, C3k2, [512, True]]                                     # 27  (P4/16-medium)
   - [-1, 1, Conv, [512, 3, 2]]                                     # 28  downsample→P5
-  - [[-1, 12], 1, WeightedConcat, [1]]                              # 29  weighted cat + backbone C2PSA
+  - [[-1, 12], 1, WeightedConcat, [1, 2]]                              # 29  weighted cat + backbone C2PSA
   - [-1, 1, C3k2, [1024, True, 0.5, True]]                         # 30  (P5/32-large)
 
   # Detection head (4 scales)
