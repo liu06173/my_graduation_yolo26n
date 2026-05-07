@@ -25,8 +25,14 @@ setup:  ## 一键安装环境 (本地开发)
 env-setup:  ## Cloud Studio环境配置 (conda/CUDA/bypy)
 	bash scripts/setup_env.sh
 
-fetch-data:  ## 通过bypy下载VisDrone + 转换为YOLO格式
+fetch-data:  ## 通过bypy下载VisDrone数据集
 	bash scripts/fetch_data.sh
+
+prepare-data:  ## 解压data/下zip + 转YOLO格式 + 验证
+	bash scripts/prepare_data.sh
+
+prepare-data-zip:  ## 处理指定zip (用法: make prepare-data-zip ZIP=xxx.zip)
+	bash scripts/prepare_data.sh --zip $(ZIP)
 
 start-train:  ## 一键开始训练 (自动检测GPU)
 	bash scripts/start_train.sh
