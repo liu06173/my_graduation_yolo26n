@@ -709,26 +709,25 @@ class CoordAtt(nn.Module):
 
     Factorizes 2D global pooling into 1D horizontal and vertical encodings,
     preserving precise spatial position information in channel attention.
+    Always preserves input channel count (identity mapping).
 
     Args:
         c1 (int): Input channels.
-        c2 (int | None): Output channels (default: same as input).
         reduction (int): Reduction ratio for intermediate channels (default: 32).
 
     Reference: https://arxiv.org/abs/2103.02907 (CVPR 2021)
     """
 
-    def __init__(self, c1, c2=None, reduction=32):
+    def __init__(self, c1, reduction=32):
         super().__init__()
-        self.c2 = c2 or c1
         hidden = max(8, c1 // reduction)
         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
         self.pool_w = nn.AdaptiveAvgPool2d((1, None))
         self.conv1 = nn.Conv2d(c1, hidden, 1, 1, 0)
         self.bn = nn.BatchNorm2d(hidden)
         self.act = nn.Hardswish() if hasattr(nn, 'Hardswish') else nn.ReLU()
-        self.conv_h = nn.Conv2d(hidden, self.c2, 1, 1, 0)
-        self.conv_w = nn.Conv2d(hidden, self.c2, 1, 1, 0)
+        self.conv_h = nn.Conv2d(hidden, c1, 1, 1, 0)
+        self.conv_w = nn.Conv2d(hidden, c1, 1, 1, 0)
 
     def forward(self, x):
         _, _, H, W = x.shape

@@ -67,7 +67,7 @@ class EmbedHead(nn.Module):
             nn.BatchNorm2d(hidden_dim),
             nn.SiLU(),
         )
-        self.coord = CoordAtt(hidden_dim, hidden_dim, 32) if use_coordatt else nn.Identity()
+        self.coord = CoordAtt(hidden_dim, 32) if use_coordatt else nn.Identity()
         self.proj = nn.Conv2d(hidden_dim, embed_dim, 1)
         self.embed_dim = embed_dim
 
