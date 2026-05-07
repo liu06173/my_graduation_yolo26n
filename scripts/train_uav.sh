@@ -204,6 +204,7 @@ yolo detect train \
     device="$DEVICE" \
     workers="$WORKERS" \
     cache=True \
+    amp=False \
     $RESUME_ARG \
     2>&1 | tee runs/train_uav.log
 
@@ -231,6 +232,12 @@ if [ $EXIT_CODE -ne 0 ]; then
         else
             echo "[OOM] batch 已降到最低，建议减小 imgsz 或换 GPU"
         fi
+    fi
+
+    # 检查是否是 AMP 检查失败 (assets/bus.jpg 缺失)
+    if grep -q "assets/bus.jpg" runs/train_uav.log 2>/dev/null; then
+        echo "[FIX] AMP 检查失败 (ultralytics assets 缺失)，已自动加 amp=False，重新训练..."
+        exec bash scripts/train_uav.sh --resume
     fi
 
     # 提示恢复命令
