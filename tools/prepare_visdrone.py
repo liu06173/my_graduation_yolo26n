@@ -206,7 +206,8 @@ def main():
                         help="Convert raw VisDrone annotations to YOLO format")
     parser.add_argument("--out", type=str, default="data/visdrone",
                         help="Output directory (default: data/visdrone)")
-    parser.add_argument("--check", action="store_true", help="Check dataset integrity")
+    parser.add_argument("--check", nargs="?", const="data/visdrone", default=None,
+                        metavar="DATA_DIR", help="Check dataset integrity (default: data/visdrone)")
     args = parser.parse_args()
 
     if args.download:
@@ -229,8 +230,8 @@ def main():
         convert_dataset(args.convert, args.out)
         return
 
-    if args.check:
-        check_dataset(args.out)
+    if args.check is not None:
+        check_dataset(args.check)
         return
 
     parser.print_help()
