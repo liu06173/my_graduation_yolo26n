@@ -37,7 +37,13 @@ prepare-data-zip:  ## 处理指定zip (用法: make prepare-data-zip ZIP=xxx.zip
 start-train:  ## 一键开始训练 (自动检测GPU)
 	bash scripts/start_train.sh
 
-train:  ## 新建训练
+train-tracking:  ## 训练TrackingYOLO26 (JDE跟踪模型)
+	bash scripts/train_tracking.sh
+
+train-tracking-resume:  ## 恢复训练TrackingYOLO26
+	bash scripts/train_tracking.sh --resume
+
+train:  ## 新建训练 (baseline)
 	bash scripts/train.sh
 
 resume:  ## 从最近checkpoint恢复训练
