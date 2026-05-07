@@ -1,25 +1,84 @@
-# YOLO26n + VisDrone2019 无人机地面目标跟踪
+# YOLO26s UAV 无人机目标检测与跟踪
 
-基于 **Ultralytics YOLO26n** 的无人机地面目标检测与跟踪系统，使用天津大学开源的 **VisDrone2019** 数据集。
+基于 **Ultralytics YOLO26** 的无人机地面目标检测与跟踪系统，使用天津大学开源的 **VisDrone2019** 数据集。
+
+## 分支版本
+
+| 分支 | 模型 | 版本 | 说明 |
+|------|------|------|------|
+| `master` | YOLO26n | v0.2 | 基础检测+JDE跟踪，训练速度优化 |
+| `yolov26s` | YOLO26s | v0.2 | YOLO26s 替换 nano，精度更高 |
+| **`yolov26s-uav`** | **YOLO26s-P2** | **v0.3** | **★ UAV追踪改进版：5个新模块 + P2检测头** |
 
 ## 项目特性
 
-- **双模型架构**: Baseline检测模型 + TrackingYOLO26 JDE跟踪模型
-- **最新YOLO26n**: NMS-Free端到端检测，MuSGD优化器
-- **JDE跟踪**: 检测+Re-ID嵌入一体化，端到端多目标跟踪
+- **5个新模块**: ECA、CoordAtt、DySample、WeightedConcat、C3k2_ECA
+- **P2检测头**: 4尺度检测 (P2/4-P5/32)，小目标检测能力翻倍
+- **改进ReID**: ECA+CoordAtt 嵌入头，跟踪关联更精准
 - **VisDrone2019**: 10类无人机视角目标，支持DET和MOT格式
-- **一键操作**: train / pause / resume / eval / export
-- **Cloud Studio 支持**: 三步启动，GPU云端训练
-- **bypy 数据获取**: 百度网盘命令行下载
+- **JDE跟踪**: 检测+Re-ID嵌入一体化，端到端多目标跟踪
+- **速度优化**: cache=True, rect=True, 每轮3-5分钟
 
 ---
 
-## 双模型
+## 快速开始 (yolov26s-uav 分支)
 
-| 模型 | 命令 | 能力 | 用途 |
-|------|------|------|------|
-| **YOLO26n Baseline** | `make start-train` | 目标检测 | 基准性能对比 |
-| **TrackingYOLO26** | `make train-tracking` | 检测 + Re-ID跟踪 | JDE多目标跟踪 |
+```bash
+# 克隆分支
+git clone --branch yolov26s-uav --depth 1 git@github.com:liu06173/my_graduation_yolo26n.git
+cd my_graduation_yolo26n
+
+# 安装
+cd ultralytics && pip install -e . --no-deps && cd ..
+```
+
+### 训练 P2 检测模型
+
+```bash
+yolo detect train \
+  model=yolo26s-p2-tracking.yaml \
+  pretrained=yolo26s.pt \
+  data=configs/visdrone.yaml \
+  epochs=100 \
+  imgsz=640 \
+  batch=18 \
+  device=0 \
+  workers=12 \
+  cache=True
+```
+
+### 训练 JDE 跟踪模型
+
+```bash
+python tools/train_tracking.py \
+  --model yolo26s-p2-tracking.yaml \
+  --weights yolo26s.pt \
+  --data configs/visdrone.yaml \
+  --epochs 100 \
+  --batch 16 \
+  --imgsz 640 \
+  --embed_dim 128
+```
+
+### 后台训练 + 监控
+
+```bash
+nohup bash -c "yolo detect train model=yolo26s-p2-tracking.yaml pretrained=yolo26s.pt data=configs/visdrone.yaml epochs=100 imgsz=640 batch=18 device=0 workers=12 cache=True" > runs/train.log 2>&1 &
+
+tail -f runs/train.log     # 查看日志
+watch -n 1 nvidia-smi       # 监控GPU
+python tools/train_ctrl.py status  # 训练状态
+```
+
+### 恢复训练
+
+```bash
+yolo detect train \
+  model=yolo26s-p2-tracking.yaml \
+  pretrained=yolo26s.pt \
+  data=configs/visdrone.yaml \
+  resume=True
+```
 
 > 研究报告: `docs/research_report.md` — 8000字学术论文，30篇真实参考文献
 
@@ -147,6 +206,31 @@ make train-tracking               # 训练跟踪模型
 
 ---
 
+## v0.3 新增模块 (yolov26s-uav)
+
+| 模块 | 论文 | 参数 | 作用 |
+|------|------|------|------|
+| **ECA** | ECA-Net (ECCV 2020) | ~0 | 1D卷积通道注意力，自适应核大小 |
+| **CoordAtt** | Coordinate Attention (CVPR 2021) | 轻量 | 位置感知通道注意力，保留空间坐标 |
+| **WeightedConcat** | BiFPN / EfficientDet (CVPR 2020) | 每输入1标量 | 学习加权特征融合，替代无脑Concat |
+| **DySample** | DySample (ICCV 2023) | 轻量 | 内容感知动态上采样，替代nearest |
+| **C3k2_ECA** | — | ~0 | ECA增强的C3k2变体 |
+| **ECABottleneck** | — | ~0 | ECA增强的Bottleneck |
+
+### 模型架构
+
+```
+Backbone: Conv → C3k2_ECA → CoordAtt → Conv → C3k2_ECA → CoordAtt →
+          Conv → C3k2 → Conv → C3k2 → SPPF → C2PSA
+Neck:     DySample↑ + WeightedConcat (FPN 4-scale) →
+          Conv↓ + WeightedConcat (PAN 4-scale)
+Head:     Detect(P2/4, P3/8, P4/16, P5/32)
+```
+
+4个检测尺度: P2(stride 4) / P3(stride 8) / P4(stride 16) / P5(stride 32)
+
+---
+
 ## 项目结构
 
 ```
@@ -162,8 +246,16 @@ make train-tracking               # 训练跟踪模型
 │   ├── visdrone.yaml              # VisDrone2019 数据配置 (10类)
 │   └── hyp_visdrone.yaml          # 训练超参数
 ├── models/                        # ★ 改进模型
-│   ├── tracking_model.py          #   TrackingYOLO26 (JDE跟踪)
+│   ├── tracking_model.py          #   TrackingYOLO26 (JDE跟踪, ECA+CoordAtt)
 │   └── tracking_loss.py           #   TripletLoss + CenterLoss
+├── ultralytics/ultralytics/
+│   ├── cfg/models/26/
+│   │   ├── yolo26.yaml            #   标准YOLO26配置
+│   │   ├── yolo26-p2.yaml         #   P2检测头配置
+│   │   └── yolo26-p2-tracking.yaml #  ★ v0.3 P2+新模块配置
+│   └── nn/modules/
+│       ├── conv.py                #   ★ ECA, CoordAtt, DySample, WeightedConcat
+│       └── block.py               #   ★ ECABottleneck, C3k2_ECA
 ├── scripts/
 │   ├── setup_env.sh               # Cloud Studio环境配置
 │   ├── prepare_data.sh            # 解压 + 转换 + 验证
@@ -237,6 +329,27 @@ bash scripts/train.sh --resume --epochs 300
 
 ---
 
+## v0.3 模块技术说明
+
+### ECA (Efficient Channel Attention)
+- 用自适应1D卷积替代FC层，~0额外参数
+- 核大小公式: `k = |log2(C)/2 + 1/2|_odd`
+- 集成于 C3k2_ECA 和 ECABottleneck
+
+### CoordAtt (Coordinate Attention)
+- 将2D全局池化分解为(H,1)+(1,W)两个1D编码
+- 保留空间位置信息，适合UAV俯视场景
+
+### DySample (Dynamic Upsampling)
+- 轻量卷积生成内容感知采样点偏移
+- 比 nearest 更精准保留小目标边界细节
+
+### WeightedConcat (BiFPN 加权融合)
+- 学习每个输入特征的标量权重 (softmax归一化)
+- 初始权重=1，退化为普通Concat，训练后自适应
+
+---
+
 ## TrackingYOLO26 — 改进模型说明
 
 在原版YOLO26n基础上新增:
@@ -244,8 +357,9 @@ bash scripts/train.sh --resume --epochs 300
 | 模块 | 说明 |
 |------|------|
 | **P2检测层** | stride=4, 160×160, 增强极小目标 |
-| **EmbedHead** | 并行Re-ID分支, 128维嵌入向量 |
-| **SEBlock** | 通道注意力, 抑制背景噪声 |
+| **EmbedHead** | 并行Re-ID分支, 128维嵌入向量 (v0.3: ECA+CoordAtt) |
+| **SEBlock** → **ECA** | ~0参数通道注意力替代SE |
+| **CoordAtt** | 位置感知注意力, 增强ReID特征 |
 | **MEF** | 多尺度嵌入融合 (P2-P5) |
 | **TripletLoss** | Hard mining 三元组损失 |
 | **CenterLoss** | 类内紧凑性约束 |
@@ -284,4 +398,4 @@ make prepare-data  # 再跑一次，已解压的自动跳过
 
 ---
 
-**模型**: YOLO26n + TrackingYOLO26 | **数据集**: VisDrone2019 (天津大学) | **框架**: Ultralytics 8.4+
+**分支**: yolov26s-uav (v0.3) | **模型**: YOLO26s-P2 + TrackingYOLO26 | **数据集**: VisDrone2019 (天津大学) | **框架**: Ultralytics 8.4+
