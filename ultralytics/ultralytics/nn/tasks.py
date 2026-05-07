@@ -36,6 +36,7 @@ from ultralytics.nn.modules import (
     C2fPSA,
     C3Ghost,
     C3k2,
+    C3k2_ECA,
     C3x,
     CBFuse,
     CBLinear,
@@ -44,9 +45,12 @@ from ultralytics.nn.modules import (
     Conv,
     Conv2,
     ConvTranspose,
+    CoordAtt,
     Detect,
     DWConv,
     DWConvTranspose2d,
+    DySample,
+    ECA,
     Focus,
     GhostBottleneck,
     GhostConv,
@@ -67,6 +71,7 @@ from ultralytics.nn.modules import (
     Segment,
     Segment26,
     TorchVision,
+    WeightedConcat,
     WorldDetect,
     YOLOEDetect,
     YOLOESegment,
@@ -1593,6 +1598,7 @@ def parse_model(d, ch, verbose=True):
             C2,
             C2f,
             C3k2,
+            C3k2_ECA,
             RepNCSPELAN4,
             ELAN1,
             ADown,
@@ -1610,6 +1616,8 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+            DySample,
+            ECA,
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1619,6 +1627,7 @@ def parse_model(d, ch, verbose=True):
             C2,
             C2f,
             C3k2,
+            C3k2_ECA,
             C2fAttn,
             C3,
             C3TR,
@@ -1656,7 +1665,7 @@ def parse_model(d, ch, verbose=True):
             if m in repeat_modules:
                 args.insert(2, n)  # number of repeats
                 n = 1
-            if m is C3k2:  # for M/L/X sizes
+            if m is C3k2 or m is C3k2_ECA:  # for M/L/X sizes
                 legacy = False
                 if scale in "mlx":
                     args[3] = True
@@ -1666,6 +1675,9 @@ def parse_model(d, ch, verbose=True):
                     args.extend((True, 1.2))
             if m is C2fCIB:
                 legacy = False
+        elif m is CoordAtt:
+            c2 = ch[f]
+            args = [ch[f], *args]
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in frozenset({HGStem, HGBlock}):
@@ -1678,7 +1690,7 @@ def parse_model(d, ch, verbose=True):
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:
             args = [ch[f]]
-        elif m is Concat:
+        elif m in frozenset({Concat, WeightedConcat}):
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
             {

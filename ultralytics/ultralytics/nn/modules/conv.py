@@ -16,14 +16,18 @@ __all__ = (
     "Conv",
     "Conv2",
     "ConvTranspose",
+    "CoordAtt",
     "DWConv",
     "DWConvTranspose2d",
+    "DySample",
+    "ECA",
     "Focus",
     "GhostConv",
     "Index",
     "LightConv",
     "RepConv",
     "SpatialAttention",
+    "WeightedConcat",
 )
 
 
@@ -667,3 +671,152 @@ class Index(nn.Module):
             (torch.Tensor): Selected tensor.
         """
         return x[self.index]
+
+
+class ECA(nn.Module):
+    """Efficient Channel Attention module with adaptive 1D convolution kernel.
+
+    Uses a 1D convolution across channels instead of FC layers for ~0 extra parameters.
+    Kernel size adapts automatically based on channel dimension.
+
+    Args:
+        channels (int): Number of input channels.
+        k_size (int | None): 1D convolution kernel size. Auto-computed if None.
+
+    Reference: https://arxiv.org/abs/1910.03151 (ECCV 2020)
+    """
+
+    def __init__(self, channels, k_size=None):
+        super().__init__()
+        if k_size is None:
+            t = int(abs(math.log2(channels) / 2 + 1 / 2))
+            k_size = t if t % 2 else t + 1
+            k_size = max(k_size, 3)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=k_size // 2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        y = self.avg_pool(x)
+        y = y.squeeze(-1).transpose(-1, -2)
+        y = self.conv(y)
+        y = y.transpose(-1, -2).unsqueeze(-1)
+        return x * self.sigmoid(y)
+
+
+class CoordAtt(nn.Module):
+    """Coordinate Attention for position-sensitive channel recalibration.
+
+    Factorizes 2D global pooling into 1D horizontal and vertical encodings,
+    preserving precise spatial position information in channel attention.
+
+    Args:
+        c1 (int): Input channels.
+        c2 (int | None): Output channels (default: same as input).
+        reduction (int): Reduction ratio for intermediate channels (default: 32).
+
+    Reference: https://arxiv.org/abs/2103.02907 (CVPR 2021)
+    """
+
+    def __init__(self, c1, c2=None, reduction=32):
+        super().__init__()
+        self.c2 = c2 or c1
+        hidden = max(8, c1 // reduction)
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        self.conv1 = nn.Conv2d(c1, hidden, 1, 1, 0)
+        self.bn = nn.BatchNorm2d(hidden)
+        self.act = nn.Hardswish() if hasattr(nn, 'Hardswish') else nn.ReLU()
+        self.conv_h = nn.Conv2d(hidden, self.c2, 1, 1, 0)
+        self.conv_w = nn.Conv2d(hidden, self.c2, 1, 1, 0)
+
+    def forward(self, x):
+        _, _, H, W = x.shape
+        x_h = self.pool_h(x)
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)
+        x_cat = torch.cat([x_h, x_w], dim=2)
+        x_cat = self.act(self.bn(self.conv1(x_cat)))
+        x_h, x_w = x_cat.split([H, W], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+        a_h = torch.sigmoid(self.conv_h(x_h))
+        a_w = torch.sigmoid(self.conv_w(x_w))
+        return x * a_h * a_w
+
+
+class WeightedConcat(nn.Module):
+    """BiFPN-style weighted feature fusion with learnable per-input weights.
+
+    Unlike Concatenate, WeightedConcat applies learnable scalar weights to each
+    input feature map before concatenation. Weights are normalized via softmax.
+
+    Args:
+        dimension (int): Dimension along which to concatenate (default: 1).
+
+    Reference: https://arxiv.org/abs/1911.09070 (EfficientDet / BiFPN)
+    """
+
+    def __init__(self, dimension=1):
+        super().__init__()
+        self.d = dimension
+        self.w = None
+        self.eps = 1e-4
+
+    def forward(self, x):
+        if isinstance(x, torch.Tensor):
+            return x
+        n = len(x)
+        if self.w is None or len(self.w) != n:
+            self.w = nn.Parameter(torch.ones(n), requires_grad=True)
+            self.w = self.w.to(x[0].device)
+        w_norm = torch.softmax(self.w, dim=0)
+        weighted = [xi * w_norm[i] for i, xi in enumerate(x)]
+        return torch.cat(weighted, self.d)
+
+
+class DySample(nn.Module):
+    """Dynamic upsampling with content-aware grid sampling.
+
+    Generates sub-pixel offsets from input features via a lightweight conv stack,
+    then applies grid_sample for content-adaptive upsampling. Preserves fine
+    spatial detail better than nearest/bilinear interpolation.
+
+    Args:
+        c1 (int): Input channels.
+        c2 (int | None): Output channels (default: same as input).
+        scale (int): Upsampling factor (default: 2).
+
+    Reference: https://arxiv.org/abs/2308.15085 (ICCV 2023)
+    """
+
+    def __init__(self, c1, c2=None, scale=2):
+        super().__init__()
+        c2 = c2 or c1
+        self.scale = scale
+        self.offset_gen = nn.Sequential(
+            nn.AdaptiveAvgPool2d(8),
+            nn.Conv2d(c1, 16, 3, 1, 1),
+            nn.SiLU(),
+            nn.Conv2d(16, scale**2 * 2, 3, 1, 1),
+        )
+        self.proj = nn.Conv2d(c1, c2, 1) if c1 != c2 else nn.Identity()
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        s = self.scale
+        x = self.proj(x)
+        offset = self.offset_gen(x)
+        offset = nn.functional.interpolate(offset, size=(H * s, W * s),
+                                            mode='bilinear', align_corners=False)
+        offset = offset.view(B, s, s, 2, H * s, W * s).permute(0, 1, 3, 2, 4, 5)
+        offset = offset.reshape(B, 2, H * s, W * s)
+        gy, gx = torch.meshgrid(
+            torch.arange(H * s, device=x.device),
+            torch.arange(W * s, device=x.device),
+            indexing='ij',
+        )
+        grid = torch.stack([
+            gx.float() / (W * s - 1) * 2 - 1 + offset[:, 0],
+            gy.float() / (H * s - 1) * 2 - 1 + offset[:, 1],
+        ], dim=-1).unsqueeze(0).expand(B, -1, -1, -1)
+        return nn.functional.grid_sample(x, grid, mode='bilinear',
+                                          padding_mode='border', align_corners=False)

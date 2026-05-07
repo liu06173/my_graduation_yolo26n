@@ -6,12 +6,12 @@
 #   - 10 classes (pedestrian, car, van, truck, bus, motor, bicycle, etc.)
 
 # ------------------- Training -------------------
-model: yolo26n.pt           # pretrained YOLO26n weights (auto-download)
-data: configs/visdrone.yaml # dataset config
-epochs: 100                 # total training epochs (reduced: overfitting started at epoch 4-6)
-patience: 15                # early stopping patience (reduced: stop sooner on overfitting)
-batch: 32                   # batch size per GPU (2x→halve iterations; more stable gradients)
-imgsz: 512                  # input image size (512²=36% less compute vs 640, enables batch×2)
+model: yolo26s-p2-tracking.yaml  # P2 4-scale model with ECA+CoordAtt+DySample+WeightedConcat
+data: configs/visdrone.yaml      # dataset config
+epochs: 100                      # total training epochs
+patience: 15                     # early stopping patience
+batch: 18                        # batch size (P2 model ~30% more GFLOPs, reduced for GPU mem)
+imgsz: 640                       # input image size (640 for better P2 small-object resolution)
 optimizer: MuSGD            # YOLO26 MuSGD optimizer
 lr0: 0.003                  # initial learning rate (reduced: small model needs lower LR)
 lrf: 0.001                  # final learning rate = lr0 * lrf (much lower final LR for stability)

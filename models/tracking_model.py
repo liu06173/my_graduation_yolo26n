@@ -24,6 +24,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import copy
 
+from ultralytics.nn.modules.conv import ECA, CoordAtt
+
 
 class SEBlock(nn.Module):
     """Squeeze-and-Excitation 通道注意力 (轻量级)"""
@@ -42,27 +44,39 @@ class SEBlock(nn.Module):
 
 
 class EmbedHead(nn.Module):
-    """Re-ID 嵌入分支 — 输出 L2 归一化的嵌入向量"""
+    """改进版 Re-ID 嵌入分支 — ECA 注意力 + 可选 CoordAtt 位置感知
 
-    def __init__(self, in_channels, embed_dim=128, hidden_dim=None):
+    相比原版改进:
+      - SEBlock → ECA (更轻量，自适应核大小，零额外参数)
+      - 残差注意力连接 (更好的梯度流)
+      - 可选 CoordAtt 模块 (位置感知特征，有利于 UAV 空间定位)
+    """
+
+    def __init__(self, in_channels, embed_dim=128, hidden_dim=None, use_coordatt=True):
         super().__init__()
         hidden_dim = hidden_dim or max(in_channels // 2, embed_dim * 2)
 
-        self.conv = nn.Sequential(
+        self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels, hidden_dim, 3, padding=1),
             nn.BatchNorm2d(hidden_dim),
             nn.SiLU(),
-            SEBlock(hidden_dim),
+        )
+        self.eca = ECA(hidden_dim)
+        self.conv2 = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim, 3, padding=1),
             nn.BatchNorm2d(hidden_dim),
             nn.SiLU(),
-            nn.Conv2d(hidden_dim, embed_dim, 1),
         )
+        self.coord = CoordAtt(hidden_dim, hidden_dim, 32) if use_coordatt else nn.Identity()
+        self.proj = nn.Conv2d(hidden_dim, embed_dim, 1)
         self.embed_dim = embed_dim
 
     def forward(self, x):
-        # x: [B, C, H, W] → embed: [B, embed_dim, H, W]
-        embed = self.conv(x)
+        out = self.conv1(x)
+        out = out + self.eca(out)
+        out = self.conv2(out)
+        out = self.coord(out)
+        embed = self.proj(out)
         return F.normalize(embed, p=2, dim=1)
 
 

@@ -37,10 +37,12 @@ __all__ = (
     "C2fPSA",
     "C3Ghost",
     "C3k2",
+    "C3k2_ECA",
     "C3x",
     "CBFuse",
     "CBLinear",
     "ContrastiveHead",
+    "ECABottleneck",
     "GhostBottleneck",
     "HGBlock",
     "HGStem",
@@ -479,6 +481,35 @@ class Bottleneck(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply bottleneck with optional shortcut connection."""
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
+
+class ECABottleneck(nn.Module):
+    """Standard bottleneck with Efficient Channel Attention after second conv.
+
+    Args:
+        c1 (int): Input channels.
+        c2 (int): Output channels.
+        shortcut (bool): Whether to use shortcut connection.
+        g (int): Groups for convolutions.
+        k (tuple): Kernel sizes for convolutions.
+        e (float): Expansion ratio.
+        eca_k_size (int | None): ECA kernel size. Auto-detected if None.
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5, eca_k_size=None):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, k[0], 1)
+        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
+        from .conv import ECA
+
+        self.eca = ECA(c2, eca_k_size)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        out = self.cv2(self.cv1(x))
+        out = self.eca(out)
+        return x + out if self.add else out
 
 
 class BottleneckCSP(nn.Module):
@@ -1102,6 +1133,39 @@ class C3k2(C2f):
             else C3k(self.c, self.c, 2, shortcut, g)
             if c3k
             else Bottleneck(self.c, self.c, shortcut, g)
+            for _ in range(n)
+        )
+
+
+class C3k2_ECA(C2f):
+    """C3k2 variant with ECA attention in bottleneck for lightweight channel attention.
+
+    Replaces standard Bottleneck with ECABottleneck (Bottleneck + ECA) when
+    c3k=False and attn=False, enabling adaptive channel recalibration at every
+    block with nearly zero extra parameters.
+
+    Args:
+        c1 (int): Input channels.
+        c2 (int): Output channels.
+        n (int): Number of blocks.
+        c3k (bool): Whether to use C3k blocks (False = ECABottleneck).
+        e (float): Expansion ratio.
+        attn (bool): Whether to use PSA attention blocks (overrides ECA).
+        g (int): Groups for convolutions.
+        shortcut (bool): Whether to use shortcut connections.
+    """
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, attn=False, g=1, shortcut=True):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            nn.Sequential(
+                Bottleneck(self.c, self.c, shortcut, g),
+                PSABlock(self.c, attn_ratio=0.5, num_heads=max(self.c // 64, 1)),
+            )
+            if attn
+            else C3k(self.c, self.c, 2, shortcut, g)
+            if c3k
+            else ECABottleneck(self.c, self.c, shortcut, g)
             for _ in range(n)
         )
 
