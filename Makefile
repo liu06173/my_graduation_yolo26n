@@ -3,7 +3,7 @@
 #  用法: make <target>
 # ============================================================
 
-.PHONY: help setup train resume eval infer export clean status pause kill logs
+.PHONY: help setup train resume eval infer export clean status pause kill logs env-setup fetch-data start-train
 
 help:  ## 显示帮助信息
 	@echo "============================================"
@@ -13,16 +13,23 @@ help:  ## 显示帮助信息
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "  快速开始:"
-	@echo "    make setup    # 一键配置环境"
-	@echo "    make train    # 开始训练"
-	@echo "    make pause    # 暂停训练"
-	@echo "    make resume   # 恢复训练"
-	@echo "    make eval     # 评估模型"
+	@echo "  Cloud Studio 三步启动:"
+	@echo "    make env-setup   # 1. 配置环境"
+	@echo "    make fetch-data  # 2. 获取数据"
+	@echo "    make start-train # 3. 开始训练"
 	@echo ""
 
-setup:  ## 一键安装环境 (PyTorch + Ultralytics + 依赖)
+setup:  ## 一键安装环境 (本地开发)
 	bash setup.sh
+
+env-setup:  ## Cloud Studio环境配置 (conda/CUDA/bypy)
+	bash scripts/setup_env.sh
+
+fetch-data:  ## 通过bypy下载VisDrone + 转换为YOLO格式
+	bash scripts/fetch_data.sh
+
+start-train:  ## 一键开始训练 (自动检测GPU)
+	bash scripts/start_train.sh
 
 train:  ## 新建训练
 	bash scripts/train.sh

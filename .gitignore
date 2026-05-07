@@ -56,6 +56,19 @@ Thumbs.db
 *.tar.gz
 *.tar
 
+# Raw dataset (before conversion)
+data/VisDrone_raw/
+data/VisDrone_raw_*/
+
+# bypy config (contains auth token)
+.bypy/
+*.bypy.json
+
+# Cloud Studio
+.cloudstudio/
+*.swp
+*.swo
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb

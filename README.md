@@ -8,8 +8,79 @@
 - **VisDrone2019数据集**: 10类无人机视角目标 (行人、车辆等)
 - **一键操作**: train / pause / resume / eval / export
 - **工程化设计**: 支持断点续训、多GPU训练、模型导出
+- **Cloud Studio 支持**: 三步启动，GPU云端训练
+- **bypy 数据获取**: 通过百度网盘命令行自动下载数据集
 
-## 快速开始
+---
+
+## Cloud Studio 云端训练（三步启动）
+
+### Step 1 — 克隆 + 配置环境
+
+```bash
+git clone https://github.com/liu06173/my_graduation_yolo26n.git
+cd my_graduation_yolo26n
+make env-setup
+# 或: bash scripts/setup_env.sh
+```
+
+自动完成: Conda环境创建 → PyTorch(CUDA)安装 → Ultralytics安装 → bypy配置
+
+### Step 2 — 获取VisDrone数据集
+
+首次使用需先授权bypy:
+
+```bash
+bypy info
+# 1. 复制打开的链接到浏览器
+# 2. 登录百度账号后复制授权码
+# 3. 粘贴回终端
+```
+
+然后将VisDrone2019保存到你的百度网盘，运行:
+
+```bash
+make fetch-data
+# 或: bash scripts/fetch_data.sh --remote /你的网盘路径
+```
+
+自动完成: bypy下载 → VisDrone原始格式转YOLO格式 → 数据完整性验证
+
+### Step 3 — 开始训练
+
+```bash
+make start-train
+# 或: bash scripts/start_train.sh
+```
+
+**后台训练（推荐，断开SSH不影响）**:
+
+```bash
+nohup bash scripts/start_train.sh > runs/train.log 2>&1 &
+
+# 查看进度
+tail -f runs/train.log
+
+# 查看GPU使用
+watch -n 1 nvidia-smi
+```
+
+**高级选项**:
+
+```bash
+# 使用P2模型（更好小目标检测）
+make start-train --p2
+
+# 恢复中断的训练
+make start-train --resume
+
+# 自定义参数
+bash scripts/start_train.sh --batch 64 --epochs 500 --imgsz 1280
+```
+
+---
+
+## 本地快速开始
 
 ### 1. 克隆仓库
 
@@ -113,37 +184,43 @@ make export-engine  # TensorRT
 ```
 .
 ├── README.md                      # 本文档
-├── Makefile                       # 命令入口 (make train / make resume ...)
-├── setup.sh                       # 一键环境配置
+├── Makefile                       # 命令入口
+├── setup.sh                       # 本地环境配置
 ├── requirements.txt               # Python依赖
+├── environment.yml                # Conda环境 (Cloud Studio)
+├── Dockerfile                     # Docker环境
 ├── .gitignore
 ├── configs/
 │   ├── visdrone.yaml              # VisDrone2019 数据配置 (10类)
-│   └── hyp_visdrone.yaml          # 训练超参数 (针对无人机优化)
+│   └── hyp_visdrone.yaml          # 训练超参数 (无人机优化)
 ├── scripts/
-│   ├── train.sh                   # 训练脚本 (支持 --resume)
+│   ├── setup_env.sh               # Cloud Studio环境配置 (conda+CUDA+bypy)
+│   ├── fetch_data.sh              # bypy下载VisDrone + 格式转换
+│   ├── start_train.sh             # 一键训练 (--resume / --p2)
+│   ├── train.sh                   # 本地训练脚本
 │   ├── eval.sh                    # 评估脚本
 │   ├── infer.sh                   # 推理脚本
 │   ├── export.sh                  # 模型导出脚本
 │   └── download_data.sh           # 数据集下载指南
 ├── tools/
-│   ├── prepare_visdrone.py        # VisDrone数据格式转换
+│   ├── prepare_visdrone.py        # VisDrone标注转YOLO格式
 │   └── train_ctrl.py              # 训练管理 (pause/status/kill/logs)
+├── docs/
+│   └── help/                      # 日常问题记录 (Git/环境/工具)
+│       ├── git.md
+│       ├── env.md
+│       └── tools.md
 ├── data/
-│   └── visdrone/                  # 数据集目录 (需自行下载)
+│   ├── VisDrone_raw/              # 原始数据 (bypy下载)
+│   └── visdrone/                  # YOLO格式数据集
 │       ├── images/
-│       │   ├── train/
-│       │   └── val/
+│       │   ├── train/  (6471 jpg)
+│       │   └── val/    (548 jpg)
 │       └── labels/
-│           ├── train/
-│           └── val/
+│           ├── train/  (6471 txt)
+│           └── val/    (548 txt)
 ├── ultralytics/                   # YOLO26源代码
 └── runs/                          # 训练输出 (自动生成)
-    └── detect/
-        └── train/
-            ├── weights/           # best.pt, last.pt
-            ├── results.csv        # 训练指标记录
-            └── *.png              # 可视化图表
 ```
 
 ## VisDrone2019 数据集
