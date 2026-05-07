@@ -18,6 +18,7 @@ IMGSZ="${IMGSZ:-512}"
 BATCH="${BATCH:-8}"
 DEVICE="${DEVICE:-0}"
 WORKERS="${WORKERS:-8}"
+FRACTION="${FRACTION:-0.4}"
 RESUME="${RESUME:-False}"
 DRY_RUN=false
 
@@ -32,6 +33,7 @@ while [[ $# -gt 0 ]]; do
         --batch) BATCH="$2"; shift 2 ;;
         --device) DEVICE="$2"; shift 2 ;;
         --workers) WORKERS="$2"; shift 2 ;;
+        --fraction) FRACTION="$2"; shift 2 ;;
         --resume) RESUME=True; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         *) echo "未知参数: $1"; exit 1 ;;
@@ -155,6 +157,7 @@ if [ "$DRY_RUN" = true ]; then
     echo "  device:     $DEVICE"
     echo "  workers:    $WORKERS"
     echo "  resume:     $RESUME"
+    echo "  fraction:   $FRACTION"
     echo ""
     echo "执行训练: bash scripts/train_uav.sh"
     exit 0
@@ -186,6 +189,7 @@ echo " epochs:     $EPOCHS"
 echo " imgsz:      $IMGSZ"
 echo " batch:      $BATCH"
 echo " device:     $DEVICE"
+echo " fraction:   $FRACTION"
 echo " resume:     ${RESUME_ARG:-False}"
 echo "========================================"
 echo ""
@@ -208,6 +212,7 @@ yolo detect train \
     optimizer=SGD \
     lr0=0.01 \
     momentum=0.937 \
+    fraction="$FRACTION" \
     $RESUME_ARG \
     2>&1 | tee runs/train_uav.log
 
@@ -228,13 +233,19 @@ if [ $EXIT_CODE -ne 0 ]; then
 
     # 检查是否是 OOM
     if grep -q "out of memory" runs/train_uav.log 2>/dev/null; then
-        NEW_BATCH=$((BATCH - 4))
-        if [ "$NEW_BATCH" -ge 4 ]; then
+        NEW_BATCH=$((BATCH - 2))
+        if [ "$NEW_BATCH" -ge 2 ]; then
             echo "[OOM] 显存不足，自动降 batch: $BATCH → $NEW_BATCH"
             echo "      重新执行: bash scripts/train_uav.sh --batch $NEW_BATCH"
         else
-            echo "[OOM] batch 已降到最低，建议减小 imgsz 或换 GPU"
+            echo "[OOM] batch 已降到最低 (2)，建议减小 imgsz 或换 GPU"
         fi
+    fi
+
+    # 检查是否是 TaskAlignedAssigner OOM (非致命 warning，但建议降参数)
+    if grep -q "TaskAlignedAssigner.*using CPU" runs/train_uav.log 2>/dev/null; then
+        echo "[WARN] 标签分配GPU显存不足(已自动用CPU)，非致命。下次可:"
+        echo "      bash scripts/train_uav.sh --imgsz 480 --batch 6"
     fi
 
     # 检查是否是 MuSGD 优化器不兼容 (zeropower_via_newtonschulz5 assert)
