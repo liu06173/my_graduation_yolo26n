@@ -205,6 +205,9 @@ yolo detect train \
     workers="$WORKERS" \
     cache=True \
     amp=False \
+    optimizer=SGD \
+    lr0=0.01 \
+    momentum=0.937 \
     $RESUME_ARG \
     2>&1 | tee runs/train_uav.log
 
@@ -232,6 +235,12 @@ if [ $EXIT_CODE -ne 0 ]; then
         else
             echo "[OOM] batch 已降到最低，建议减小 imgsz 或换 GPU"
         fi
+    fi
+
+    # 检查是否是 MuSGD 优化器不兼容 (zeropower_via_newtonschulz5 assert)
+    if grep -q "zeropower_via_newtonschulz5\|AssertionError.*muon" runs/train_uav.log 2>/dev/null; then
+        echo "[FIX] MuSGD 不兼容新模块的非2D参数，已自动切换 optimizer=SGD，重新训练..."
+        exec bash scripts/train_uav.sh --resume
     fi
 
     # 检查是否是 AMP 检查失败 (assets/bus.jpg 缺失)
