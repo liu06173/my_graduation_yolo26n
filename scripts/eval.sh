@@ -35,7 +35,7 @@ echo "  Weights: $WEIGHT"
 echo "=========================================="
 echo ""
 
-exec python -m ultralytics.val \
+exec yolo detect val \
     model="$WEIGHT" \
     data=configs/visdrone.yaml \
     imgsz=640 \

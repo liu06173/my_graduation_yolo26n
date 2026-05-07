@@ -88,7 +88,7 @@ if [ "$MODE" = "resume" ]; then
     fi
     echo -e "${YELLOW}  从checkpoint恢复: $CKPT${NC}"
 
-    exec python -m ultralytics.train \
+    exec yolo detect train \
         model="$CKPT" resume=True \
         data=configs/visdrone.yaml \
         epochs=$EPOCHS \
@@ -104,7 +104,7 @@ if [ "$MODE" = "resume" ]; then
         val=True \
         plots=True
 else
-    exec python -m ultralytics.train \
+    exec yolo detect train \
         model=$MODEL \
         data=configs/visdrone.yaml \
         epochs=$EPOCHS \

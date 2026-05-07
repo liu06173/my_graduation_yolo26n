@@ -44,7 +44,7 @@ echo "  Source:  $SOURCE"
 echo "=========================================="
 echo ""
 
-exec python -m ultralytics.predict \
+exec yolo detect predict \
     model="$WEIGHT" \
     source="$SOURCE" \
     imgsz=640 \

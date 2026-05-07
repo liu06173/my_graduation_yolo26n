@@ -113,7 +113,7 @@ else
 fi
 
 # ---------- 启动训练 ----------
-exec python -m ultralytics.train \
+exec yolo detect train \
     $RESUME_ARG \
     data=configs/visdrone.yaml \
     epochs=$EPOCHS \

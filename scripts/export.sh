@@ -46,7 +46,7 @@ echo "  FP16:    ${HALF:-False}"
 echo "=========================================="
 echo ""
 
-exec python -m ultralytics.export \
+exec yolo export \
     model="$WEIGHT" \
     format="$FORMAT" \
     imgsz=640 \
