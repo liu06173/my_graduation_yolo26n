@@ -32,13 +32,13 @@ backbone:
 # FPN+PAN neck with DySample upsampling and WeightedConcat fusion
 head:
   # FPN top-down (4-scale)
-  - [-1, 1, DySample, [512, 512, 2]]                               # 13  upsample P5→P4
+  - [-1, 1, DySample, [512, 2]]                                    # 13  upsample P5→P4
   - [[-1, 8], 1, WeightedConcat, [1]]                               # 14  weighted cat + backbone P4
   - [-1, 2, C3k2, [512, True]]                                     # 15
-  - [-1, 1, DySample, [256, 256, 2]]                               # 16  upsample→P3
+  - [-1, 1, DySample, [256, 2]]                                    # 16  upsample→P3
   - [[-1, 5], 1, WeightedConcat, [1]]                               # 17  weighted cat + backbone P3
   - [-1, 2, C3k2, [256, True]]                                     # 18  (P3/8-small)
-  - [-1, 1, DySample, [128, 128, 2]]                               # 19  upsample→P2
+  - [-1, 1, DySample, [128, 2]]                                    # 19  upsample→P2
   - [[-1, 2], 1, WeightedConcat, [1]]                               # 20  weighted cat + backbone P2
   - [-1, 2, C3k2, [128, True]]                                     # 21  (P2/4-xsmall)
 
