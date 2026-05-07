@@ -1,0 +1,66 @@
+# Ultralytics YOLO 🚀, AGPL-3.0 license
+# YOLO26n hyperparameters optimized for VisDrone2019 UAV dataset
+# Key considerations:
+#   - Small targets: higher mosaic/mixup, multi-scale training
+#   - UAV perspective: restricted flipud, stronger HSV
+#   - 10 classes (pedestrian, car, van, truck, bus, motor, bicycle, etc.)
+
+# ------------------- Training -------------------
+model: yolo26n.pt           # pretrained YOLO26n weights (auto-download)
+data: configs/visdrone.yaml # dataset config
+epochs: 300                 # total training epochs
+patience: 50                # early stopping patience (0=disable)
+batch: 32                   # batch size per GPU (-1 for auto)
+imgsz: 640                  # input image size
+optimizer: MuSGD            # YOLO26 MuSGD optimizer
+lr0: 0.01                   # initial learning rate
+lrf: 0.01                   # final learning rate = lr0 * lrf
+momentum: 0.937             # SGD momentum
+weight_decay: 0.0005        # optimizer weight decay
+warmup_epochs: 3.0          # warmup epochs (fraction ok)
+warmup_momentum: 0.8        # warmup initial momentum
+warmup_bias_lr: 0.1         # warmup initial bias lr
+
+# ------------------- Augmentation -------------------
+# UAV-specific augmentation strategy
+hsv_h: 0.02                 # hue augmentation (higher for UAV lighting changes)
+hsv_s: 0.8                  # saturation (higher for weather variation)
+hsv_v: 0.5                  # value/brightness
+degrees: 10.0               # rotation (+/- deg) - moderate for UAV
+translate: 0.15             # translation (+/- fraction)
+scale: 0.6                  # scale gain (+/- gain) - wider for UAV distance changes
+shear: 1.0                  # shear (+/- deg)
+perspective: 0.0005         # perspective (+/- fraction) - simulates UAV angle
+flipud: 0.0                 # upside-down flip probability (DISABLED for UAV)
+fliplr: 0.5                 # left-right flip probability
+mosaic: 1.0                 # mosaic augmentation probability
+mixup: 0.1                  # mixup augmentation probability
+copy_paste: 0.1             # segment copy-paste (for small objects)
+
+# ------------------- Loss -------------------
+box: 7.5                    # box loss weight (higher for precise localization)
+cls: 0.5                    # cls loss weight
+dfl: 1.5                    # dfl loss weight
+
+# ------------------- Validation -------------------
+val: True                   # validate during training
+save_period: 10             # save checkpoint every N epochs
+plots: True                 # save plots during training
+close_mosaic: 10            # disable mosaic augmentation for last N epochs
+
+# ------------------- Advanced -------------------
+device: 0                   # GPU device (0,1,2,3 or cpu)
+workers: 8                  # dataloader workers per GPU
+cache: False                # cache images in RAM (requires ~30GB for VisDrone)
+rect: False                 # rectangular training
+cos_lr: True                # cosine LR scheduler
+label_smoothing: 0.0        # label smoothing epsilon
+nbs: 64                     # nominal batch size
+overlap_mask: True          # mask overlap during training
+mask_ratio: 4               # mask downsample ratio
+dropout: 0.0                # dropout rate
+seed: 42                    # random seed
+single_cls: False           # train as single-class
+fraction: 1.0               # fraction of dataset to use
+profile: False              # profile ONNX and TensorRT speeds
+freeze: null                # freeze first N layers (null=no freeze)

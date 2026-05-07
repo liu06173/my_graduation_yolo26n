@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.claude/
+
+# Training outputs
+runs/
+runs_offline/
+*.pt
+!yolo26n.pt
+last.pt
+best.pt
+
+# Dataset (large files)
+data/visdrone/images/
+data/visdrone/labels/
+data/visdrone/annotations/
+data/VisDrone2019*/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Model exports
+*.onnx
+*.engine
+*.trt
+*.mlmodel
+*.tflite
+*.coreml
+
+# Large files
+*.zip
+*.tar.gz
+*.tar
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+.env
+.env.local
+wandb/

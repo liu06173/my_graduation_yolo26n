@@ -1,0 +1,36 @@
+# Ultralytics YOLO 🚀, AGPL-3.0 license
+# VisDrone2019 dataset configuration for YOLO26
+# Dataset: Tianjin University VisDrone2019
+# Official site: https://github.com/VisDrone/VisDrone-Dataset
+
+# Path settings (modify these to match your data location)
+path: ../data/visdrone  # dataset root dir
+train: images/train     # train images (relative to 'path')
+val: images/val         # val images (relative to 'path')
+test: images/test       # test images (relative to 'path') - optional
+
+# VisDrone2019 has 10 classes
+# 0: pedestrian
+# 1: people
+# 2: bicycle
+# 3: car
+# 4: van
+# 5: truck
+# 6: tricycle
+# 7: awning-tricycle
+# 8: bus
+# 9: motor
+
+nc: 10
+
+names:
+  0: pedestrian
+  1: people
+  2: bicycle
+  3: car
+  4: van
+  5: truck
+  6: tricycle
+  7: awning-tricycle
+  8: bus
+  9: motor
