@@ -14,10 +14,10 @@ MODEL="${MODEL:-yolo26s-p2-tracking.yaml}"
 PRETRAINED="${PRETRAINED:-yolo26s.pt}"
 DATA="${DATA:-configs/visdrone.yaml}"
 EPOCHS="${EPOCHS:-100}"
-IMGSZ="${IMGSZ:-640}"
-BATCH="${BATCH:-18}"
+IMGSZ="${IMGSZ:-512}"
+BATCH="${BATCH:-8}"
 DEVICE="${DEVICE:-0}"
-WORKERS="${WORKERS:-12}"
+WORKERS="${WORKERS:-8}"
 RESUME="${RESUME:-False}"
 DRY_RUN=false
 
@@ -119,13 +119,13 @@ if [ "$DEVICE" != "cpu" ] && [ "$CUDA_OK" == "True" ]; then
     GPU_TOTAL_GB=$((GPU_TOTAL / 1024 / 1024 / 1024))
 
     if [ "$GPU_TOTAL_GB" -le 8 ]; then
-        SUGGESTED_BATCH=12
+        SUGGESTED_BATCH=4
     elif [ "$GPU_TOTAL_GB" -le 12 ]; then
-        SUGGESTED_BATCH=18
+        SUGGESTED_BATCH=6
     elif [ "$GPU_TOTAL_GB" -le 16 ]; then
-        SUGGESTED_BATCH=24
+        SUGGESTED_BATCH=10
     else
-        SUGGESTED_BATCH=32
+        SUGGESTED_BATCH=16
     fi
 
     if [ "$BATCH" -gt "$SUGGESTED_BATCH" ]; then

@@ -10,16 +10,16 @@ model: yolo26s-p2-tracking.yaml  # P2 4-scale model with ECA+CoordAtt+DySample+W
 data: configs/visdrone.yaml      # dataset config
 epochs: 100                      # total training epochs
 patience: 15                     # early stopping patience
-batch: 18                        # batch size (P2 model ~30% more GFLOPs, reduced for GPU mem)
-imgsz: 640                       # input image size (640 for better P2 small-object resolution)
-optimizer: MuSGD            # YOLO26 MuSGD optimizer
-lr0: 0.003                  # initial learning rate (reduced: small model needs lower LR)
-lrf: 0.001                  # final learning rate = lr0 * lrf (much lower final LR for stability)
-momentum: 0.937             # SGD momentum
-weight_decay: 0.001         # optimizer weight decay (increased L2 regularization)
-warmup_epochs: 3.0          # warmup epochs (shorter: less overhead)
-warmup_momentum: 0.8        # warmup initial momentum
-warmup_bias_lr: 0.1         # warmup initial bias lr
+batch: 8                         # batch size (P2 model ~33GFLOPs, T4 14GB用8避OOM)
+imgsz: 512                       # input image size (512=36% less memory vs 640)
+optimizer: SGD                   # SGD (MuSGD不兼容1D参数如WeightedConcat.w)
+lr0: 0.01                        # initial learning rate (SGD标准)
+lrf: 0.01                        # final learning rate factor
+momentum: 0.937                  # SGD momentum
+weight_decay: 0.0005             # optimizer weight decay
+warmup_epochs: 3.0               # warmup epochs
+warmup_momentum: 0.8             # warmup initial momentum
+warmup_bias_lr: 0.1              # warmup initial bias lr
 
 # ------------------- Augmentation -------------------
 # UAV-specific augmentation strategy (trimmed for speed while keeping small-object gains)
@@ -61,6 +61,6 @@ mask_ratio: 4               # mask downsample ratio
 dropout: 0.1                # dropout rate (add regularization, reduce overfitting)
 seed: 42                    # random seed
 single_cls: False           # train as single-class
-fraction: 0.4               # fraction of dataset to use (further reduced for faster epochs)
+fraction: 0.4               # fraction of dataset to use (~9600 images, reduced for speed+memory)
 profile: False              # profile ONNX and TensorRT speeds
 freeze: null                # freeze first N layers (null=no freeze)
