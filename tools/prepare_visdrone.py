@@ -124,79 +124,225 @@ def check_dataset(data_dir):
 
 
 def convert_dataset(raw_dir, out_dir):
-    """Convert full VisDrone2019 dataset from raw format."""
+    """Convert full VisDrone2019 dataset from raw format (supports DET and MOT)."""
     raw_dir = Path(raw_dir)
     out_dir = Path(out_dir)
 
-    # Detect directory structure
-    # VisDrone2019-DET-train/
-    #   images/  (or directly .jpg files)
-    #   annotations/  (or directly .txt files)
-    for split, split_name in [("train", "VisDrone2019-DET-train"), ("val", "VisDrone2019-DET-val")]:
-        src_dir = raw_dir / split_name
-        if not src_dir.exists():
-            # Try alternate structure
-            alt_dirs = list(raw_dir.glob(f"*{split}*"))
-            if alt_dirs:
-                src_dir = alt_dirs[0]
+    # Auto-detect DET vs MOT and find splits
+    # DET: VisDrone2019-DET-train/images/*.jpg + annotations/*.txt
+    # MOT: VisDrone2019-MOT-train/sequences/<seq>/*.jpg + annotations/<seq>.txt
+    for split in ["train", "val", "test"]:
+        src_dir = None
+        is_mot = False
 
-        if not src_dir.exists():
-            print(f"[WARNING] Cannot find {split} data. Expected: {src_dir}")
+        # Search for matching directory
+        for d in raw_dir.iterdir():
+            if not d.is_dir():
+                continue
+            dname = d.name.lower()
+            if "mot" in dname and split in dname:
+                src_dir = d
+                is_mot = True
+                break
+            if "det" in dname and split in dname:
+                src_dir = d
+                is_mot = False
+                break
+
+        # Fallback: match any dir containing split name
+        if src_dir is None:
+            for d in raw_dir.iterdir():
+                if d.is_dir() and split in d.name.lower():
+                    src_dir = d
+                    is_mot = ("mot" in d.name.lower() or
+                              (d / "sequences").exists())
+                    break
+
+        if src_dir is None:
+            print(f"[WARNING] Cannot find {split} data")
             continue
 
-        # Find images
-        img_src = src_dir / "images"
-        if not img_src.exists():
-            imgs = list(src_dir.glob("*.jpg"))
-            if imgs:
-                img_src = src_dir
-            else:
-                print(f"[ERROR] No images found in {src_dir}")
-                continue
-
-        # Find annotations
-        ann_src = src_dir / "annotations"
-        if not ann_src.exists():
-            txts = list(src_dir.glob("*.txt"))
-            if txts:
-                ann_src = src_dir
-
-        # Create output directories
         img_dst = out_dir / "images" / split
         lbl_dst = out_dir / "labels" / split
         img_dst.mkdir(parents=True, exist_ok=True)
         lbl_dst.mkdir(parents=True, exist_ok=True)
 
-        print(f"\nConverting {split}...")
+        print(f"\nConverting {split} ({'MOT' if is_mot else 'DET'}) from {src_dir.name}...")
 
-        # Copy/symlink images
-        if img_src.is_dir():
-            for img in img_src.glob("*.jpg"):
-                shutil.copy2(img, img_dst / img.name)
-        print(f"  Copied images to {img_dst}")
-
-        # Convert annotations
-        if ann_src.exists():
-            # Detect if already in YOLO format
-            test_file = next(ann_src.glob("*.txt"), None)
-            if test_file:
-                with open(test_file) as f:
-                    first_line = f.readline().strip()
-                # YOLO format: <int> <float> <float> <float> <float>
-                parts = first_line.split()
-                if len(parts) == 5 and "." not in parts[0]:
-                    print("  Labels already in YOLO format, copying directly...")
-                    for lbl in ann_src.glob("*.txt"):
-                        shutil.copy2(lbl, lbl_dst / lbl.name)
-                else:
-                    print("  Converting VisDrone → YOLO format...")
-                    n = visdrone2yolo(str(ann_src), str(lbl_dst))
-                    print(f"  Converted {n} labels")
+        if is_mot:
+            _convert_mot(src_dir, img_dst, lbl_dst)
         else:
-            print(f"  [WARNING] No annotations found at {ann_src}")
+            _convert_det(src_dir, img_dst, lbl_dst)
 
     print("\nConversion complete! Checking dataset...")
     check_dataset(out_dir)
+
+
+def _convert_det(src_dir, img_dst, lbl_dst):
+    """Convert DET format: images/ + annotations/ pairs."""
+    img_src = src_dir / "images"
+    ann_src = src_dir / "annotations"
+
+    if not img_src.exists():
+        img_src = src_dir  # images directly in dir
+    if not ann_src.exists():
+        ann_src = src_dir  # annotations directly in dir
+
+    img_count = 0
+    for img in img_src.glob("*.jpg"):
+        shutil.copy2(img, img_dst / img.name)
+        img_count += 1
+    print(f"  Copied {img_count} images")
+
+    if ann_src.exists():
+        _convert_annotations(ann_src, lbl_dst)
+    else:
+        print(f"  [WARNING] No annotations found")
+
+
+def _convert_mot(src_dir, img_dst, lbl_dst):
+    """Convert MOT format: sequences/<seq>/*.jpg + annotations/<seq>.txt."""
+    seq_dir = src_dir / "sequences"
+    ann_dir = src_dir / "annotations"
+
+    if not seq_dir.exists():
+        print(f"  [ERROR] No sequences/ directory found")
+        return
+
+    total_imgs = 0
+    total_anns = 0
+
+    for seq_path in sorted(seq_dir.iterdir()):
+        if not seq_path.is_dir():
+            continue
+
+        seq_name = seq_path.name
+        ann_file = ann_dir / f"{seq_name}.txt"
+
+        # Read all annotations for this sequence, grouped by frame
+        frame_anns = {}
+        if ann_file.exists():
+            with open(ann_file) as f:
+                for line in f:
+                    parts = line.strip().split(",")
+                    if len(parts) < 9:
+                        continue
+                    # MOT format: frame, id, x, y, w, h, score, class, trunc, occlusion
+                    try:
+                        frame_idx = int(parts[0])
+                        cls_id = int(parts[7]) - 1  # 1-10 → 0-9
+                        trunc = int(parts[8])
+                        occl = int(parts[9])
+                    except ValueError:
+                        continue
+
+                    if (cls_id + 1) in IGNORE_IDS:
+                        continue
+                    if cls_id < 0 or cls_id >= len(CLASS_NAMES):
+                        continue
+                    if trunc > 2 and occl > 2:
+                        continue
+
+                    x, y, w, h = float(parts[2]), float(parts[3]), float(parts[4]), float(parts[5])
+                    if frame_idx not in frame_anns:
+                        frame_anns[frame_idx] = []
+                    frame_anns[frame_idx].append(f"{cls_id} {x:.6f} {y:.6f} {w:.6f} {h:.6f}")
+
+        # Copy images and generate per-frame labels
+        for img_file in sorted(seq_path.glob("*.jpg")):
+            # Frame index from filename (e.g., 0000001.jpg → 1)
+            try:
+                frame_idx = int(img_file.stem)
+            except ValueError:
+                frame_idx = total_imgs + 1
+
+            dst_name = f"{seq_name}_{img_file.name}"
+
+            # Copy image
+            shutil.copy2(img_file, img_dst / dst_name)
+            total_imgs += 1
+
+            # Write YOLO label for this frame
+            if frame_idx in frame_anns:
+                # Normalize coordinates (MOT uses absolute pixel coords)
+                # We need image dimensions - read from the image
+                # For now, use a placeholder. Actual normalization done later if needed.
+                # MOT bboxes are in absolute pixels, YOLO needs normalized
+                # But without reading image dims each time, we write abs coords
+                # and rely on the fact that all images in a sequence have same dims
+                label_path = lbl_dst / f"{seq_name}_{img_file.stem}.txt"
+                with open(label_path, "w") as lf:
+                    lf.write("\n".join(frame_anns[frame_idx]))
+                total_anns += 1
+
+    print(f"  Copied {total_imgs} images")
+    print(f"  Generated {total_anns} labels")
+
+    # Normalize MOT labels (convert absolute coords to normalized)
+    if total_anns > 0:
+        _normalize_mot_labels(img_dst, lbl_dst)
+
+
+def _normalize_mot_labels(img_dir, lbl_dir):
+    """Normalize MOT absolute coordinates to YOLO format using actual image dimensions."""
+    print("  Normalizing coordinates...")
+    for label_file in lbl_dir.glob("*.txt"):
+        # Find corresponding image
+        img_name = label_file.stem + ".jpg"
+        img_path = img_dir / img_name
+
+        if not img_path.exists():
+            continue
+
+        # Read image dimensions
+        import cv2
+        im = cv2.imread(str(img_path))
+        if im is None:
+            continue
+        h, w = im.shape[:2]
+
+        # Normalize each line
+        lines = []
+        with open(label_file) as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) != 5:
+                    continue
+                cls_id = parts[0]
+                x, y, bw, bh = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+                # Normalize: center_x, center_y, width, height
+                nx = x / w
+                ny = y / h
+                nw = bw / w
+                nh = bh / h
+                # Clamp to [0,1]
+                nx = max(0, min(1, nx))
+                ny = max(0, min(1, ny))
+                nw = min(1, nw)
+                nh = min(1, nh)
+                lines.append(f"{cls_id} {nx:.6f} {ny:.6f} {nw:.6f} {nh:.6f}")
+
+        with open(label_file, "w") as f:
+            f.write("\n".join(lines))
+
+
+def _convert_annotations(ann_src, lbl_dst):
+    """Convert annotations from VisDrone DET format to YOLO format."""
+    test_file = next(ann_src.glob("*.txt"), None)
+    if test_file:
+        with open(test_file) as f:
+            first_line = f.readline().strip()
+        parts = first_line.split()
+        if len(parts) == 5 and "." not in parts[0]:
+            print("  Labels already in YOLO format, copying directly...")
+            for lbl in ann_src.glob("*.txt"):
+                shutil.copy2(lbl, lbl_dst / lbl.name)
+        else:
+            print("  Converting VisDrone DET → YOLO format...")
+            n = visdrone2yolo(str(ann_src), str(lbl_dst))
+            print(f"  Converted {n} labels")
+    else:
+        print(f"  [WARNING] No annotation files found")
 
 
 def main():
