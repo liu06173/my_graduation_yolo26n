@@ -798,8 +798,8 @@ class DySample(nn.Module):
     def forward(self, x):
         B, C, H, W = x.shape
         s = self.scale
-        x = self.proj(x)
         offset = self.offset_gen(x)
+        x = self.proj(x)
         offset = nn.functional.interpolate(offset, size=(H * s, W * s),
                                             mode='bilinear', align_corners=False)
         offset = offset.view(B, s * s, 2, H * s, W * s).mean(dim=1)
