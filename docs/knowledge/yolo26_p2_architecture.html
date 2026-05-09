@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLO26-P2-Tracking — 无人机航拍改进检测模型</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+/* Page-specific styles */
+.module-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+}
+.module-node {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 28px;
+    text-align: center;
+    min-width: 280px;
+    position: relative;
+}
+.module-node.accent { border-color: var(--accent); }
+.module-node.accent2 { border-color: var(--accent2); }
+.module-node.accent3 { border-color: var(--accent3); }
+.module-node .name { font-weight: 700; font-size: 1.05em; }
+.module-node .desc { font-size: 0.85em; color: var(--text-secondary); margin-top: 4px; }
+.module-arrow {
+    color: var(--text-secondary);
+    font-size: 1.4em;
+    padding: 2px 0;
+}
+
+.param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+.param-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    text-align: center;
+}
+.param-item .val {
+    font-size: 1.6em;
+    font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.param-item .lbl {
+    font-size: 0.82em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.improve-indicator {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    justify-content: center;
+    margin: 20px 0;
+}
+.improve-indicator .bar-container {
+    flex: 1;
+    max-width: 500px;
+    height: 28px;
+    background: var(--bg);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.improve-indicator .bar-fill {
+    height: 100%;
+    border-radius: 14px;
+    background: var(--gradient-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78em;
+    font-weight: 700;
+    color: #0f172a;
+    transition: width 0.8s ease;
+}
+
+.timeline {
+    display: flex;
+    gap: 0;
+    align-items: flex-start;
+    margin: 24px 0;
+    flex-wrap: wrap;
+}
+.timeline-item {
+    flex: 1;
+    min-width: 150px;
+    text-align: center;
+    padding: 16px;
+    border-top: 3px solid var(--border);
+    position: relative;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    top: -9px; left: 50%;
+    transform: translateX(-50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--border);
+}
+.timeline-item.done { border-top-color: var(--success); }
+.timeline-item.done::before { background: var(--success); }
+.timeline-item.active { border-top-color: var(--accent); }
+.timeline-item.active::before { background: var(--accent); box-shadow: 0 0 12px rgba(56,189,248,0.5); }
+.timeline-item .phase { font-weight: 700; font-size: 0.9em; margin-bottom: 4px; }
+.timeline-item .detail { font-size: 0.8em; color: var(--text-secondary); }
+
+.attention-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin: 20px 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.attention-cell {
+    padding: 24px;
+    border: 1px solid var(--border);
+    margin: -1px 0 0 -1px;
+}
+.attention-cell:nth-child(1) { background: rgba(56,189,248,0.04); }
+.attention-cell:nth-child(2) { background: rgba(244,114,182,0.04); }
+.attention-cell:nth-child(3) { background: rgba(129,140,248,0.04); }
+.attention-cell:nth-child(4) { background: rgba(52,211,153,0.04); }
+.attention-cell .title { font-weight: 700; margin-bottom: 8px; }
+.attention-cell .where { font-size: 0.82em; color: var(--accent); margin-bottom: 8px; }
+.attention-cell .detail { font-size: 0.88em; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+    <h1>YOLO26-P2-Tracking</h1>
+    <p class="subtitle">
+        面向无人机航拍场景的改进目标检测模型 &mdash;
+        集成 ECA / CoordAtt / DySample / WeightedConcat / C3k2_ECA
+    </p>
+    <p class="subtitle" style="margin-top:8px; font-size:0.85em;">
+        VisDrone2019-MOT &middot; Person + Vehicle &middot; 4检测头 &middot; 2.8M参数
+    </p>
+</header>
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav>
+    <div class="nav-inner">
+        <a href="#motivation">设计动机</a>
+        <a href="#compare">模型对比</a>
+        <a href="#backbone">骨干网络</a>
+        <a href="#neck">Neck</a>
+        <a href="#modules">注意力模块</a>
+        <a href="#training">训练策略</a>
+    </div>
+</nav>
+
+<!-- ═══════════ CONTENT ═══════════ -->
+<main class="container">
+
+<!-- ── 设计动机 ── -->
+<section id="motivation">
+<h2><span class="icon" style="background:rgba(56,189,248,0.15);">🎯</span> 为什么需要改进？</h2>
+
+<div class="param-grid">
+    <div class="param-item">
+        <div class="val">0.02%</div>
+        <div class="lbl">VisDrone中行人平均占比</div>
+    </div>
+    <div class="param-item">
+        <div class="val">4×4px</div>
+        <div class="lbl">P2/4 检测头最小感知尺寸</div>
+    </div>
+    <div class="param-item">
+        <div class="val">8×8px</div>
+        <div class="lbl">标准P3/8 最小感知尺寸</div>
+    </div>
+    <div class="param-item">
+        <div class="val">+12%</div>
+        <div class="lbl">参数量增幅 (2.50M→2.80M)</div>
+    </div>
+</div>
+
+<table>
+<thead><tr><th>挑战</th><th>标准YOLO26</th><th style="color:#34d399;">改进方案</th></tr></thead>
+<tbody>
+<tr><td>小目标漏检</td><td>P3/8 起步，最小8px</td><td style="color:#34d399;"><strong>+P2/4检测头</strong> → 4px起检测</td></tr>
+<tr><td>通道无侧重</td><td>所有通道等权重</td><td style="color:#34d399;"><strong>ECA自适应通道注意力</strong></td></tr>
+<tr><td>空间信息丢失</td><td>下采样抹去位置</td><td style="color:#34d399;"><strong>CoordAtt坐标注意力</strong></td></tr>
+<tr><td>粗糙上采样</td><td>最近邻插值</td><td style="color:#34d399;"><strong>DySample动态内容自适应</strong></td></tr>
+<tr><td>盲目拼接</td><td>直接Concat</td><td style="color:#34d399;"><strong>WeightedConcat加权融合</strong></td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── 模型对比 ── -->
+<section id="compare">
+<h2><span class="icon" style="background:rgba(129,140,248,0.15);">📊</span> 三版模型对比</h2>
+
+<table>
+<thead><tr><th>维度</th><th>标准YOLO26n</th><th>YOLO26n-P2</th><th style="color:#f472b6;">YOLO26n-P2-Tracking</th></tr></thead>
+<tbody>
+<tr>
+    <td>检测尺度</td>
+    <td>3层 (P3~P5)</td>
+    <td>4层 (P2~P5)</td>
+    <td style="color:#f472b6;"><strong>4层 (P2~P5)</strong></td>
+</tr>
+<tr><td>通道注意力</td><td>—</td><td>—</td><td style="color:#f472b6;"><span class="badge badge-blue">ECA</span> P2、P3层</td></tr>
+<tr><td>位置注意力</td><td>—</td><td>—</td><td style="color:#f472b6;"><span class="badge badge-purple">CoordAtt</span> P2、P3层</td></tr>
+<tr><td>上采样方式</td><td>最近邻</td><td>最近邻</td><td style="color:#f472b6;"><span class="badge badge-pink">DySample</span> 动态采样</td></tr>
+<tr><td>特征融合</td><td>Concat</td><td>Concat</td><td style="color:#f472b6;"><span class="badge badge-yellow">WeightedConcat</span> 加权</td></tr>
+<tr><td>参数量</td><td>2.50M</td><td>2.66M</td><td style="color:#f472b6;"><strong>~2.80M</strong></td></tr>
+<tr><td>GFLOPs</td><td>5.8</td><td>9.5</td><td style="color:#f472b6;"><strong>~10.2</strong></td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── 骨干网络 ── -->
+<section id="backbone">
+<h2><span class="icon" style="background:rgba(244,114,182,0.15);">🏗️</span> 骨干网络 (Backbone)</h2>
+
+<div class="arch-diagram">
+输入 512×512×3
+<span class="dim">│</span>
+<span class="dim">├─</span> [0] <span class="hl">Conv</span>(64, s=2)      ─── 256×256   <span class="dim"># P1/2</span>
+<span class="dim">├─</span> [1] <span class="hl">Conv</span>(128, s=2)     ─── 128×128   <span class="dim"># P2/4</span>
+<span class="dim">├─</span> [2] <span class="hl2">C3k2_ECA</span>(256)        <span class="grn">← ECA通道注意力</span>
+<span class="dim">├─</span> [3] <span class="hl3">CoordAtt</span>              <span class="grn">← 坐标位置注意力</span>
+<span class="dim">├─</span> [4] <span class="hl">Conv</span>(256, s=2)     ─── 64×64     <span class="dim"># P3/8</span>
+<span class="dim">├─</span> [5] <span class="hl2">C3k2_ECA</span>(512)        <span class="grn">← ECA通道注意力</span>
+<span class="dim">├─</span> [6] <span class="hl3">CoordAtt</span>              <span class="grn">← 坐标位置注意力</span>
+<span class="dim">├─</span> [7] <span class="hl">Conv</span>(512, s=2)     ─── 32×32     <span class="dim"># P4/16</span>
+<span class="dim">├─</span> [8] C3k2(512)
+<span class="dim">├─</span> [9] <span class="hl">Conv</span>(1024, s=2)    ─── 16×16     <span class="dim"># P5/32</span>
+<span class="dim">├─</span> [10] C3k2(1024)
+<span class="dim">├─</span> [11] SPPF(1024)             <span class="dim"># 多尺度池化</span>
+<span class="dim">└─</span> [12] C2PSA(1024)            <span class="dim"># 位置自注意力</span>
+</div>
+
+<div class="highlight-box" style="margin-top:20px;">
+    <strong>设计要点：</strong>ECA + CoordAtt 仅部署在 <strong>P2/4 和 P3/8</strong> 两层。
+    高分辨率层包含最多小目标信息，注意力收益最大；
+    P4/P5 由 C2PSA 提供位置自注意力，无需重复叠加。
+</div>
+
+<h3>注意力放置策略</h3>
+<table>
+<thead><tr><th>层</th><th>分辨率</th><th>检测目标</th><th>增强方案</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>P2/4</td><td>128×128</td><td>极小 (4-8px)</td><td><span class="badge badge-blue">ECA</span> <span class="badge badge-purple">CoordAtt</span></td><td>小目标第一道防线，收益最大</td></tr>
+<tr><td>P3/8</td><td>64×64</td><td>小 (8-16px)</td><td><span class="badge badge-blue">ECA</span> <span class="badge badge-purple">CoordAtt</span></td><td>中小目标，注意力辅助定位</td></tr>
+<tr><td>P4/16</td><td>32×32</td><td>中 (16-32px)</td><td>标准 C3k2</td><td>中目标，普通特征足够</td></tr>
+<tr><td>P5/32</td><td>16×16</td><td>大 (32px+)</td><td>C3k2 + C2PSA</td><td>C2PSA自注意力替代</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── Neck ── -->
+<section id="neck">
+<h2><span class="icon" style="background:rgba(52,211,153,0.15);">🔀</span> 特征金字塔颈 (FPN+PAN Neck)</h2>
+
+<div class="comp-card">
+    <div class="comp-item old">
+        <h4 style="color:var(--danger);">✗ 标准YOLO26 Neck</h4>
+        <pre><span class="cm"># 上采样</span>
+nn.Upsample(<span class="str">nearest</span>)       <span class="cm">← 直接复制像素</span>
+<span class="cm"># 融合</span>
+Concat([feat1, feat2])    <span class="cm">← 等权重拼接</span></pre>
+    </div>
+    <div class="comp-item new">
+        <h4 style="color:var(--success);">✓ P2-Tracking Neck</h4>
+        <pre><span class="cm"># 上采样 (全部替换)</span>
+<span class="hl">DySample</span>(scale=2)        <span class="cm">← 内容自适应采样</span>
+<span class="cm"># 融合 (全部替换)</span>
+<span class="hl2">WeightedConcat</span>([f1,f2]) <span class="cm">← 学习最佳融合比例</span></pre>
+    </div>
+</div>
+
+<div class="arch-diagram" style="margin-top:16px;">
+<span class="dim"># FPN 自顶向下</span>
+[13] <span class="hl3">DySample</span>(512, ×2)     <span class="dim">P5→P4</span>
+[14] <span class="hl2">WeightedConcat</span>       <span class="dim">+ backbone[8]</span>
+[15] C3k2(512)            <span class="dim"># P4/16</span>
+
+[16] <span class="hl3">DySample</span>(256, ×2)     <span class="dim">P4→P3</span>
+[17] <span class="hl2">WeightedConcat</span>       <span class="dim">+ backbone[5] (含CoordAtt)</span>
+[18] C3k2(256)            <span class="dim"># P3/8-small</span>
+
+[19] <span class="hl3">DySample</span>(128, ×2)     <span class="dim">P3→P2</span>
+[20] <span class="hl2">WeightedConcat</span>       <span class="dim">+ backbone[2] (含C3k2_ECA+CoordAtt)</span>
+[21] C3k2(128)            <span class="dim"># P2/4-xsmall  ← 核心改进!</span>
+
+<span class="dim"># PAN 自底向上</span>
+[22] Conv(128, s=2) → [23] <span class="hl2">WeightedConcat</span> + head[18] → [24] C3k2(256)
+[25] Conv(256, s=2) → [26] <span class="hl2">WeightedConcat</span> + head[15] → [27] C3k2(512)
+[28] Conv(512, s=2) → [29] <span class="hl2">WeightedConcat</span> + backbone[12] → [30] C3k2(1024)
+
+<span class="dim"># 4尺度检测输出</span>
+[31] <span class="grn">Detect</span>(<span class="ylw">[P2, P3, P4, P5]</span>)
+    P2/4  → 128×128 网格  (极小目标 4px+)
+    P3/8  → 64×64   网格  (小目标 8px+)
+    P4/16 → 32×32   网格  (中目标 16px+)
+    P5/32 → 16×16   网格  (大目标 32px+)
+</div>
+</section>
+
+<!-- ── 六大注意力模块详解 ── -->
+<section id="modules">
+<h2><span class="icon" style="background:rgba(251,191,36,0.15);">⚡</span> 六大改进模块详解</h2>
+
+<div class="attention-grid">
+
+<!-- ECA -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-blue">通道注意力</span> ECA</div>
+    <div class="where">conv.py:676 &middot; ECCV 2020</div>
+    <div class="detail">
+        <strong>核心思想：</strong>用1D卷积替代全连接层做通道交互，参数量接近于零。<br>
+        <strong>自适应kernel：</strong> k = |log₂(C)/2 + 0.5|，取奇数<br>
+        <strong>流程：</strong> AdaptiveAvgPool2d → Conv1d(k) → Sigmoid → ×原特征<br>
+        <strong>额外参数：</strong>仅 k 个float (通常3~5个)
+    </div>
+</div>
+
+<!-- CoordAtt -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-purple">位置注意力</span> CoordAtt</div>
+    <div class="where">conv.py:707 &middot; CVPR 2021</div>
+    <div class="detail">
+        <strong>核心思想：</strong>将2D全局池化分解为1D水平和垂直编码，保留精确空间坐标。<br>
+        <strong>流程：</strong> X方向池化 + Y方向池化 → 拼接 → Conv降维 → 分离 → 双Sigmoid门控<br>
+        <strong>优势：</strong>不抹去位置信息，对小目标定位极为关键
+    </div>
+</div>
+
+<!-- DySample -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-pink">动态上采样</span> DySample</div>
+    <div class="where">conv.py:771 &middot; ICCV 2023</div>
+    <div class="detail">
+        <strong>核心思想：</strong>从特征内容学习采样偏移量，动态调整上采样位置。<br>
+        <strong>流程：</strong> Pool(8×8) → Conv→SiLU→Conv → 生成offset → grid_sample<br>
+        <strong>vs最近邻：</strong>保留更多细节，小目标边缘更清晰
+    </div>
+</div>
+
+<!-- WeightedConcat -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-yellow">加权融合</span> WeightedConcat</div>
+    <div class="where">conv.py:745 &middot; CVPR 2020 (BiFPN)</div>
+    <div class="detail">
+        <strong>核心思想：</strong>不同层特征学习不同融合权重，而非等权拼接。<br>
+        <strong>实现：</strong> w = softmax(learnable_params)，然后加权拼接<br>
+        <strong>例子：</strong> P3=0.7×feat_P3 + P4=0.3×feat_P4 (自动学习)
+    </div>
+</div>
+
+<!-- ECABottleneck -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-green">ECA残差块</span> ECABottleneck</div>
+    <div class="where">block.py:486</div>
+    <div class="detail">
+        <strong>结构：</strong> Conv(1×1) → Conv(3×3) → <strong>ECA</strong> → +残差连接<br>
+        <strong>与标准Bottleneck区别：</strong>第二个Conv后插入ECA通道注意力<br>
+        <strong>额外成本：</strong>每个Block仅增~5个参数
+    </div>
+</div>
+
+<!-- C3k2_ECA -->
+<div class="attention-cell">
+    <div class="title"><span class="badge badge-blue">ECA增强CSP</span> C3k2_ECA</div>
+    <div class="where">block.py:1140</div>
+    <div class="detail">
+        <strong>结构：</strong>继承C2f，Bottleneck替换为ECABottleneck<br>
+        <strong>逻辑：</strong> attn=False, c3k=False → 走ECA路径<br>
+        <strong>部署位置：</strong> Backbone P2和P3层，替代标准C3k2
+    </div>
+</div>
+
+</div>
+</section>
+
+<!-- ── 训练策略 ── -->
+<section id="training">
+<h2><span class="icon" style="background:rgba(52,211,153,0.15);">🚀</span> 训练计划</h2>
+
+<div class="timeline">
+    <div class="timeline-item done">
+        <div class="phase">Phase 1</div>
+        <div class="detail">数据准备<br>MOT→YOLO 2类<br>✅ 完成</div>
+    </div>
+    <div class="timeline-item active">
+        <div class="phase">Phase 2</div>
+        <div class="detail">标准YOLO26n<br>60→200 epochs<br>🟢 训练中</div>
+    </div>
+    <div class="timeline-item">
+        <div class="phase">Phase 3</div>
+        <div class="detail">P2-Tracking<br>200 epochs<br>⏳ 待启动</div>
+    </div>
+    <div class="timeline-item">
+        <div class="phase">Phase 4</div>
+        <div class="detail">消融实验<br>对比分析<br>⏳ 计划中</div>
+    </div>
+</div>
+
+<h3>预期提升</h3>
+<table>
+<thead><tr><th>指标</th><th>标准YOLO26n (预估)</th><th style="color:#34d399;">P2-Tracking (预估)</th><th>提升</th></tr></thead>
+<tbody>
+<tr>
+    <td>mAP@50</td>
+    <td>0.55 ~ 0.60</td>
+    <td style="color:#34d399;"><strong>0.60 ~ 0.68</strong></td>
+    <td><span class="badge badge-green">+5~10%</span></td>
+</tr>
+<tr>
+    <td>mAP@50-95</td>
+    <td>0.28 ~ 0.32</td>
+    <td style="color:#34d399;"><strong>0.32 ~ 0.38</strong></td>
+    <td><span class="badge badge-green">+4~6%</span></td>
+</tr>
+<tr>
+    <td>小目标(&lt;16px) AP</td>
+    <td>低</td>
+    <td style="color:#34d399;"><strong>明显提升</strong></td>
+    <td><span class="badge badge-green">+10~20%</span></td>
+</tr>
+<tr>
+    <td>推理速度</td>
+    <td>基准</td>
+    <td>略慢</td>
+    <td><span class="badge badge-yellow">~-15%</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+</main>
+
+<footer>
+    <p>YOLO26-P2-Tracking Architecture Documentation &middot; 无人机航拍检测改进模型</p>
+    <p style="margin-top:4px;">VisDrone2019-MOT &middot; Person + Vehicle &middot; ECA / CoordAtt / DySample / WeightedConcat</p>
+</footer>
+
+</body>
+</html>
