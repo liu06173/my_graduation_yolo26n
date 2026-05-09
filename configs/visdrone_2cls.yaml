@@ -1,0 +1,12 @@
+# YOLO26 VisDrone 2-class config (person + vehicle)
+# 从VisDrone2019-MOT转换而来
+# 类别: 0=person(行人+人群), 1=vehicle(轿车+面包车+卡车+公交)
+path: D:/yolo26_cache/data/visdrone
+train: images/train
+val: images/val
+test: images/test
+
+nc: 2
+names:
+  0: person
+  1: vehicle
