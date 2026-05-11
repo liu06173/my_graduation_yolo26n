@@ -254,6 +254,42 @@ engine = DetectionEngine()
 def index():
     return render_template('index.html')
 
+@app.route('/api/chat', methods=['POST'])
+def proxy_chat():
+    """代理本地LLM请求，解决CORS"""
+    import requests as req
+    try:
+        resp = req.post('http://127.0.0.1:5801/v1/chat/completions',
+                       json=request.json, timeout=120)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/chat')
+def chat_page():
+    return render_template('chat.html')
+
+@app.route('/monitor')
+def monitor_page():
+    return render_template('monitor.html')
+
+@app.route('/api/train_csv')
+def train_csv():
+    """返回P2训练CSV数据"""
+    csv_path = Path('D:/yolo26_cache/runs/detect/train_p2tracking/results.csv')
+    if not csv_path.exists():
+        return jsonify({"lines": [], "error": "CSV not found"})
+    lines = csv_path.read_text().strip().splitlines()
+    # GPU info
+    gpu_info = 'N/A'
+    try:
+        import subprocess, re
+        out = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.used,temperature.gpu', '--format=csv,noheader'], timeout=5)
+        gpu_info = out.decode().strip()
+    except:
+        pass
+    return jsonify({"lines": lines, "gpu": gpu_info})
+
 @app.route('/api/models')
 def get_models():
     return jsonify(scan_models())
@@ -351,40 +387,49 @@ def get_task(task_id):
     task = active_tasks.get(task_id, {"status": "not_found"})
     return jsonify(task)
 
-@app.route('/api/deepseek', methods=['POST'])
-def deepseek_analyze():
-    """调用DeepSeek API进行分析"""
+@app.route('/api/analyze', methods=['POST'])
+def ai_analyze():
+    """AI分析 — 支持 DeepSeek / 本地 Qwen3"""
     data = request.json
+    provider = data.get('provider', 'deepseek')  # 'deepseek' or 'local'
     api_key = data.get('api_key', '')
     model_name = data.get('model', 'deepseek-v4-flash')
     detection_results = data.get('results', [])
     prompt = data.get('prompt', '')
 
-    if not api_key:
-        return jsonify({"error": "请填写DeepSeek API Key"}), 400
     if not detection_results:
         return jsonify({"error": "无检测结果"}), 400
+    if provider != 'local' and not api_key:
+        return jsonify({"error": "请填写API Key"}), 400
 
-    system_prompt = """你是一个计算机视觉专家。请分析以下YOLO模型在视频上的检测结果。
+    system_prompt = """你是一个计算机视觉专家。请分析以下YOLO模型在视频上的检测结果。对每个模型分析检测性能、可能的问题和改进建议。多模型对比时指出各模型优劣。请用中文回答，专业且简洁。"""
 
-对每个模型分析：
-1. 检测性能（目标数、类别分布）
-2. 可能的问题和改进建议
-3. 如果是多模型对比，指出各模型优劣
-
-请用中文回答，专业且简洁。"""
-
-    user_prompt = f"检测结果对比:\n{json.dumps(detection_results, ensure_ascii=False, indent=2)}\n\n用户问题: {prompt}" if prompt else f"检测结果:\n{json.dumps(detection_results, ensure_ascii=False, indent=2)}\n\n请分析这些检测结果。"
+    user_prompt = f"检测结果:\n{json.dumps(detection_results, ensure_ascii=False, indent=2)}"
+    if prompt:
+        user_prompt += f"\n\n用户问题: {prompt}"
 
     try:
         import requests
-        resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
-            headers={
+
+        if provider == 'local':
+            api_url = "http://127.0.0.1:5801/v1/chat/completions"
+            headers = {"Content-Type": "application/json"}
+            req_body = {
+                "model": "qwen3-4b-local",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.7,
+                "max_tokens": 1024,
+            }
+        else:
+            api_url = "https://api.deepseek.com/v1/chat/completions"
+            headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
-            },
-            json={
+            }
+            req_body = {
                 "model": model_name,
                 "messages": [
                     {"role": "system", "content": system_prompt},
@@ -392,15 +437,23 @@ def deepseek_analyze():
                 ],
                 "temperature": 0.7,
                 "max_tokens": 2000,
-            },
-            timeout=60,
-        )
+            }
+
+        resp = requests.post(api_url, headers=headers, json=req_body, timeout=120)
         if resp.status_code == 200:
-            return jsonify(resp.json()["choices"][0]["message"])
+            content = resp.json()["choices"][0]["message"]["content"]
+            return jsonify({"content": content, "provider": provider})
         else:
             return jsonify({"error": f"API Error {resp.status_code}: {resp.text[:200]}"}), resp.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Backward compatibility
+@app.route('/api/deepseek', methods=['POST'])
+def deepseek_analyze():
+    data = request.json
+    data['provider'] = 'deepseek'
+    return ai_analyze()
 
 @app.route('/video/<path:filename>')
 def serve_video(filename):

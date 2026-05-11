@@ -3,709 +3,377 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YOLO26 视频检测对比平台</title>
+<title>YOLO26 检测平台</title>
 <style>
-:root {
-    --bg: #0b0f19;
-    --bg2: #131924;
-    --card: #1a2235;
-    --card2: #1e2840;
-    --border: #2a3550;
-    --text: #e2e8f0;
-    --text2: #94a3b8;
-    --blue: #38bdf8;
-    --purple: #818cf8;
-    --pink: #f472b6;
-    --green: #34d399;
-    --yellow: #fbbf24;
-    --red: #f87171;
-    --radius: 10px;
-    --shadow: 0 4px 24px rgba(0,0,0,0.4);
-}
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
-    font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-}
-.header {
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
-    display: flex; align-items: center; gap: 16px;
-    position: sticky; top:0; z-index: 50;
-}
-.header h1 {
-    font-size: 1.3em;
-    background: linear-gradient(135deg, var(--blue), var(--purple));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.header .badge { font-size:0.75em; color:var(--text2); }
+body { font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#0b0f19; color:#e2e8f0; }
+.topbar { background:#131924; border-bottom:1px solid #2a3550; padding:14px 20px; font-size:1.1em; font-weight:700; }
+.topbar span { background:linear-gradient(135deg,#38bdf8,#818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.layout { display:flex; height:calc(100vh - 53px); }
+.sidebar { width:320px; background:#131924; border-right:1px solid #2a3550; padding:18px; overflow-y:auto; }
+.sidebar h3 { font-size:0.82em; color:#38bdf8; margin:14px 0 8px; }
+.main { flex:1; padding:24px; overflow-y:auto; }
 
-.main { display: grid; grid-template-columns: 340px 1fr; gap:0; min-height: calc(100vh - 60px); }
+.model-row { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; border-radius:6px; font-size:0.84em; }
+.model-row:hover { background:#1a2235; }
+.model-row input { accent-color:#38bdf8; }
+.model-row .sz { color:#94a3b8; font-size:0.78em; margin-left:auto; }
 
-/* ─── Left Panel ─── */
-.sidebar {
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    padding: 20px;
-    overflow-y: auto;
-    max-height: calc(100vh - 60px);
-}
-.sidebar h3 {
-    font-size: 0.85em; color: var(--blue); text-transform: uppercase;
-    letter-spacing: 1px; margin: 16px 0 8px;
-}
-.sidebar h3:first-child { margin-top:0; }
+.video-row { padding:8px 10px; cursor:pointer; border-radius:6px; font-size:0.84em; border:1px solid transparent; }
+.video-row:hover { background:#1a2235; }
+.video-row.sel { border-color:#38bdf8; background:rgba(56,189,248,0.08); }
+.video-row .tag { font-size:0.72em; color:#94a3b8; }
 
-/* Model cards */
-.model-folder { margin-bottom: 12px; }
-.model-folder-title {
-    font-size: 0.82em; font-weight: 700; color: var(--purple);
-    padding: 6px 10px; background: rgba(129,140,248,0.08);
-    border-radius: 6px; margin-bottom: 4px; cursor: pointer;
-}
-.model-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; border-radius: 6px; cursor: pointer;
-    transition: background 0.15s; font-size:0.85em;
-}
-.model-item:hover { background: var(--card); }
-.model-item input { accent-color: var(--blue); }
-.model-item .size { color: var(--text2); font-size:0.78em; margin-left:auto; }
+.upload-zone { border:2px dashed #2a3550; border-radius:10px; padding:16px; text-align:center; cursor:pointer; margin-top:10px; }
+.upload-zone:hover { border-color:#38bdf8; }
+.upload-zone p { font-size:0.82em; color:#94a3b8; }
 
-/* Video list */
-.video-item {
-    padding: 8px 10px; border-radius: 6px; cursor: pointer;
-    font-size:0.84em; transition: background 0.15s;
-    border: 1px solid transparent;
-}
-.video-item:hover { background: var(--card); }
-.video-item.active { border-color: var(--blue); background: rgba(56,189,248,0.08); }
-.video-item .folder-tag { font-size:0.7em; color:var(--text2); }
+.ctrl { margin-bottom:10px; }
+.ctrl label { display:block; font-size:0.78em; color:#94a3b8; margin-bottom:3px; }
+.ctrl input, .ctrl select { width:100%; padding:7px 10px; border-radius:6px; border:1px solid #2a3550; background:#1a2235; color:#e2e8f0; font-size:0.84em; }
+.ctrl-row { display:flex; gap:8px; }
+.ctrl-row .ctrl { flex:1; }
 
-/* Controls */
-.control-group { margin-bottom: 12px; }
-.control-group label { display:block; font-size:0.8em; color:var(--text2); margin-bottom:4px; }
-.control-group input, .control-group select {
-    width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border);
-    background: var(--card); color: var(--text); font-size:0.85em;
-}
-.control-row { display:flex; gap:8px; }
-.control-row .control-group { flex:1; }
+.btn { width:100%; padding:11px; border:none; border-radius:8px; font-size:0.9em; font-weight:700; cursor:pointer; margin-top:8px; }
+.btn-go { background:linear-gradient(135deg,#38bdf8,#818cf8); color:#fff; }
+.btn-go:disabled { opacity:0.4; cursor:not-allowed; }
 
-.btn {
-    width:100%; padding:12px; border:none; border-radius:8px; font-size:0.9em;
-    font-weight:700; cursor:pointer; transition: all 0.15s; margin-top:8px;
-}
-.btn-primary { background: linear-gradient(135deg, var(--blue), var(--purple)); color:#fff; }
-.btn-primary:hover { opacity:0.9; transform: translateY(-1px); }
-.btn-primary:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
-.btn-sm { width:auto; padding:6px 14px; font-size:0.8em; margin-top:4px; }
-.btn-outline {
-    background: transparent; border:1px solid var(--border); color: var(--text);
-}
-.btn-outline:hover { border-color: var(--blue); }
+.progress-wrap { background:#1a2235; border-radius:20px; height:6px; margin:10px 0; overflow:hidden; display:none; }
+.progress-bar { height:100%; border-radius:20px; background:linear-gradient(90deg,#38bdf8,#34d399); width:0; }
+#progressText { font-size:0.78em; color:#94a3b8; }
 
-/* Upload area */
-.upload-zone {
-    border: 2px dashed var(--border); border-radius: var(--radius);
-    padding: 20px; text-align: center; cursor: pointer; margin-top:8px;
-    transition: border-color 0.15s;
-}
-.upload-zone:hover { border-color: var(--blue); }
-.upload-zone .icon { font-size: 2em; margin-bottom:8px; }
-.upload-zone p { font-size:0.82em; color:var(--text2); }
+.video-box { background:#000; border-radius:8px; margin-bottom:16px; overflow:hidden; }
+.video-box video { width:100%; max-height:360px; }
 
-/* ─── Right Panel ─── */
-.content { padding: 24px; overflow-y: auto; }
-.video-preview {
-    width:100%; max-height:400px; background:var(--card); border-radius:var(--radius);
-    border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
-    margin-bottom: 20px; position: relative; overflow:hidden;
-}
-.video-preview video { width:100%; max-height:400px; border-radius:var(--radius); }
-.video-preview .placeholder { color:var(--text2); font-size:1.1em; text-align:center; padding:60px; }
+.result-card { background:#1a2235; border:1px solid #2a3550; border-radius:10px; padding:18px; margin-bottom:14px; }
+.result-card h3 { font-size:0.95em; color:#38bdf8; border-bottom:1px solid #2a3550; padding-bottom:8px; margin-bottom:10px; }
+.result-card .row { display:flex; justify-content:space-between; padding:3px 0; font-size:0.84em; border-bottom:1px solid rgba(42,53,80,0.4); }
+.result-card .row .val { font-weight:700; }
+.result-card .out-video { margin-top:10px; border-radius:6px; overflow:hidden; background:#000; }
+.result-card .out-video video { width:100%; max-height:260px; }
 
-/* Progress bar */
-.progress-wrap {
-    background: var(--card); border-radius:20px; height:8px; margin: 12px 0;
-    overflow:hidden; border:1px solid var(--border);
-}
-.progress-bar {
-    height:100%; border-radius:20px; background: linear-gradient(90deg, var(--blue), var(--green));
-    transition: width 0.3s; width:0%;
-}
+.bar-wrap { margin:3px 0; }
+.bar-inner { display:flex; align-items:center; gap:8px; font-size:0.8em; }
+.bar-label { width:90px; text-align:right; flex-shrink:0; }
+.bar-track { flex:1; height:16px; background:#0b0f19; border-radius:8px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:8px; display:flex; align-items:center; padding-left:6px; font-size:0.72em; font-weight:700; color:#0f172a; }
 
-/* Results */
-.result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-top: 16px; }
-.result-card {
-    background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px;
-}
-.result-card h3 { font-size:1em; margin-bottom: 12px; color: var(--blue); border-bottom:1px solid var(--border); padding-bottom:8px; }
-.result-card .metric-row {
-    display:flex; justify-content:space-between; padding:4px 0; font-size:0.85em;
-    border-bottom: 1px solid rgba(42,53,80,0.5);
-}
-.result-card .metric-row .val { font-weight: 700; }
+.toast { position:fixed; top:16px; right:16px; padding:10px 18px; border-radius:8px; z-index:999; font-size:0.84em; font-weight:600; display:none; }
+.toast.ok { background:#34d399; color:#0f172a; }
+.toast.err { background:#f87171; color:#fff; }
 
-/* Comparison table */
-.comp-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:0.85em; }
-.comp-table th { background: rgba(56,189,248,0.1); padding:10px 12px; text-align:left; color: var(--blue); font-weight:600; border-bottom:2px solid var(--border); }
-.comp-table td { padding:10px 12px; border-bottom:1px solid var(--border); }
-.comp-table tr:last-child td { border-bottom:none; }
-.comp-table .highlight { color: var(--green); font-weight:700; }
-
-/* Chart bars */
-.bar-chart { margin:8px 0; }
-.bar-chart .bar-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:0.82em; }
-.bar-chart .bar-label { width:100px; text-align:right; flex-shrink:0; }
-.bar-chart .bar-track { flex:1; height:20px; background:var(--bg); border-radius:10px; overflow:hidden; position:relative; }
-.bar-chart .bar-fill { height:100%; border-radius:10px; transition: width 0.5s; display:flex; align-items:center; padding-left:8px; font-size:0.75em; font-weight:700; color:#0f172a; }
-
-/* DeepSeek Panel */
-.ai-panel { margin-top:24px; border-top:1px solid var(--border); padding-top:20px; }
-.ai-panel h3 { color:var(--purple); margin-bottom:12px; }
-.ai-panel textarea { width:100%; height:80px; background:var(--card); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:10px; font-size:0.85em; resize:vertical; margin-top:8px; }
-.ai-response { background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-top:12px; font-size:0.85em; line-height:1.7; white-space:pre-wrap; display:none; }
-
-/* Status indicators */
-.status { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
-.status.running { background:var(--yellow); animation: pulse 1s infinite; }
-.status.done { background:var(--green); }
-.status.error { background:var(--red); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-/* Toast */
-.toast {
-    position:fixed; top:20px; right:20px; padding:12px 20px; border-radius:8px;
-    z-index:1000; font-size:0.85em; font-weight:600; display:none;
-    animation: slideIn 0.3s ease;
-}
-.toast.success { background:var(--green); color:#0f172a; }
-.toast.error { background:var(--red); color:#fff; }
-@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
-
-.tabs { display:flex; gap:4px; margin-bottom:16px; }
-.tab {
-    padding:8px 16px; border-radius:6px; cursor:pointer; font-size:0.85em;
-    border:1px solid var(--border); transition:all 0.15s;
-}
-.tab.active { background:var(--blue); color:#0f172a; border-color:var(--blue); font-weight:700; }
-.tab:hover:not(.active) { border-color:var(--text2); }
-
-/* Responsive */
-@media (max-width:900px) {
-    .main { grid-template-columns: 1fr; }
-    .sidebar { max-height:none; border-right:none; border-bottom:1px solid var(--border); }
-    .result-grid { grid-template-columns: 1fr; }
-}
+#errBox { display:none; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.4); border-radius:8px; padding:14px; margin-bottom:14px; color:#f87171; font-family:Consolas,monospace; font-size:0.82em; white-space:pre-wrap; }
 </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>YOLO26 视频检测对比平台</h1>
-    <span class="badge">Multi-Model · Comparison · AI Analysis</span>
-    <span style="margin-left:auto; font-size:0.8em; color:var(--text2);" id="gpuStatus">GPU: 检测中...</span>
-</div>
+<div class="topbar"><span>YOLO26 视频检测平台</span></div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<div class="main">
-<!-- ═══ Left Sidebar ═══ -->
+<div class="layout">
+
 <div class="sidebar">
+<h3>MODELS</h3>
+<div id="modelList">Loading...</div>
 
-<h3>🎯 选择模型 (可多选)</h3>
-<div id="modelList"><span style="color:var(--text2);font-size:0.85em;">加载中...</span></div>
+<h3>VIDEOS</h3>
+<div id="videoList">Loading...</div>
 
-<h3>🎬 选择视频</h3>
-<div id="videoList"><span style="color:var(--text2);font-size:0.85em;">加载中...</span></div>
-
-<div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-    <div class="icon">📤</div>
-    <p>点击上传视频<br><span style="font-size:0.8em;">支持 MP4/AVI/MOV/MKV/WEBM</span></p>
+<div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+    <p>Click to upload video<br>(MP4/AVI/MOV)</p>
 </div>
-<input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleUpload(this)">
+<input type="file" id="fileInput" accept="video/*" style="display:none" onchange="uploadVideo()">
 
-<h3>⚙️ 检测参数</h3>
-<div class="control-group">
-    <label>检测模式</label>
-    <select id="detectMode" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.85em;">
-        <option value="detect">📐 逐帧检测 (累计计数)</option>
-        <option value="track">🎯 跟踪统计 (独立目标去重)</option>
+<h3>PARAMS</h3>
+<div class="ctrl"><label>Confidence</label><input type="number" id="conf" value="0.25" step="0.05" min="0.05" max="0.95"></div>
+<div class="ctrl"><label>IoU</label><input type="number" id="iou" value="0.7" step="0.05" min="0.1" max="0.95"></div>
+<div class="ctrl"><label>Image Size</label><select id="imgSize"><option value="512">512</option><option value="640" selected>640</option><option value="768">768</option></select></div>
+
+<button class="btn btn-go" id="runBtn" onclick="startDetection()">START DETECTION</button>
+<div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+<div id="progressText"></div>
+
+<h3>AI ANALYSIS</h3>
+<div class="ctrl"><label>Provider</label>
+    <select id="aiProvider" onchange="var l=document.getElementById('localNote');var k=document.getElementById('apiKey');if(this.value==='local'){k.style.display='none';if(l)l.style.display='block';}else{k.style.display='block';if(l)l.style.display='none';}">
+        <option value="deepseek">DeepSeek</option>
+        <option value="local">Qwen3-4B (Local)</option>
     </select>
 </div>
-<div class="control-row">
-<div class="control-group"><label>置信度阈值</label><input type="number" id="conf" value="0.25" step="0.05" min="0.05" max="0.95"></div>
-<div class="control-group"><label>IoU阈值</label><input type="number" id="iou" value="0.7" step="0.05" min="0.1" max="0.95"></div>
+<div id="localNote" style="display:none;font-size:0.75em;color:#34d399;margin-bottom:8px;">CPU推理，无需API Key</div>
+<div class="ctrl" id="apiKeyWrap"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
+<div class="ctrl"><label>Model</label>
+    <select id="aiModel">
+        <option>deepseek-v4-flash</option>
+        <option>deepseek-v4-pro</option>
+    </select>
 </div>
-<div class="control-group"><label>输入尺寸</label>
-    <select id="imgSize"><option value="512">512</option><option value="640" selected>640</option><option value="768">768</option><option value="1024">1024</option></select>
-</div>
+<div class="ctrl"><label>Prompt (optional)</label><input type="text" id="aiPrompt" placeholder="e.g. Which model is best?"></div>
+<button class="btn btn-go" onclick="runAI()" style="background:linear-gradient(135deg,#818cf8,#f472b6);">AI ANALYZE</button>
+<div id="aiResponse" style="display:none;margin-top:10px;padding:10px;background:#1a2235;border-radius:8px;font-size:0.82em;line-height:1.6;max-height:300px;overflow-y:auto;"></div>
 
-<button class="btn btn-primary" id="runBtn" onclick="runDetection()">🚀 开始检测</button>
-<div class="progress-wrap" id="progressWrap" style="display:none;"><div class="progress-bar" id="progressBar"></div></div>
-<p id="progressText" style="font-size:0.8em;color:var(--text2);margin-top:4px;"></p>
-
-</div>
-
-<!-- ═══ Right Content ═══ -->
-<div class="content">
-
-<!-- Video Preview -->
-<div class="video-preview" id="videoPreview">
-    <div class="placeholder">👈 在左侧选择视频或上传</div>
 </div>
 
-<!-- Tabs -->
-<div class="tabs">
-    <div class="tab active" onclick="switchTab('results')">📊 检测结果</div>
-    <div class="tab" onclick="switchTab('compare')">📋 模型对比</div>
+<div class="main">
+<div id="errBox"></div>
+<div class="video-box" id="videoPreview">
+    <div style="text-align:center;padding:80px;color:#94a3b8;">Select a video from the left panel</div>
+</div>
+<div id="resultGrid"></div>
 </div>
 
-<!-- Results -->
-<div id="tab-results">
-    <p style="color:var(--text2);font-size:0.9em;">选择模型和视频后点击"开始检测"</p>
-    <div class="result-grid" id="resultGrid"></div>
-</div>
-
-<!-- Comparison -->
-<div id="tab-compare" style="display:none;">
-    <div id="compContent"><p style="color:var(--text2);">检测完成后自动生成对比</p></div>
-</div>
-
-<!-- Debug Log Panel -->
-<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="document.getElementById('logPanel').style.display=document.getElementById('logPanel').style.display==='none'?'block':'none'">
-        <h3 style="margin:0;color:var(--text2);">📋 调试日志 <span style="font-size:0.75em;" id="logCount">0条</span></h3>
-        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();clearLogs()">清空</button>
-    </div>
-    <div id="logPanel" style="display:none;max-height:200px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:8px;font-family:Consolas,monospace;font-size:0.75em;line-height:1.6;white-space:pre-wrap;color:var(--text2);"></div>
 </div>
 
 <script>
-let logLines = [];
-function addLog(msg, type) {
-    var colors = {info:'#94a3b8', ok:'#34d399', err:'#f87171', warn:'#fbbf24'};
-    var now = new Date().toLocaleTimeString();
-    logLines.push('[' + now + '] ' + msg);
-    if (logLines.length > 200) logLines.shift();
-    var panel = document.getElementById('logPanel');
-    if (panel) {
-        var color = colors[type] || '#94a3b8';
-        var items = [];
-        for (var i = 0; i < logLines.length; i++) {
-            items.push('<span style="color:' + color + '">' + logLines[i] + '</span>');
-        }
-        panel.innerHTML = items.join('\n');
-        panel.scrollTop = panel.scrollHeight;
-    }
-    document.getElementById('logCount').textContent = logLines.length + '条';
-}
-function clearLogs() { logLines=[]; document.getElementById('logPanel').innerHTML=''; document.getElementById('logCount').textContent='0条'; }
-</script>
+// ─── Global Error Display ───
+window.onerror = function(msg, url, line, col, err) {
+    var el = document.getElementById('errBox');
+    el.style.display = 'block';
+    el.textContent = 'JS ERROR: ' + msg + ' (line ' + line + ')';
+    return false;
+};
 
-<!-- DeepSeek AI Panel -->
-<div class="ai-panel">
-    <h3>🤖 AI 分析 (DeepSeek)</h3>
-    <div class="control-row">
-        <div class="control-group"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
-        <div class="control-group"><label>模型</label>
-            <select id="aiModel"><option>deepseek-v4-flash</option><option>deepseek-v4-pro</option><option disabled>deepseek-chat (2026/07弃用)</option><option disabled>deepseek-reasoner (2026/07弃用)</option></select>
-        </div>
-    </div>
-    <label style="font-size:0.8em;color:var(--text2);">分析提示 (可选)</label>
-    <textarea id="aiPrompt" placeholder="例如：哪个模型更适合无人机场景？为什么？"></textarea>
-    <button class="btn btn-outline btn-sm" onclick="runAIAnalysis()">🔮 AI 分析</button>
-    <div class="ai-response" id="aiResponse"></div>
-</div>
-
-</div>
-</div>
-
-<script>
 // ─── State ───
-let models = {}, videos = [], selectedVideo = null, detectionResults = [];
-const COLORS = ['#38bdf8','#818cf8','#f472b6','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c'];
+var models = {};
+var videos = [];
+var selectedVideo = null;
+var detectionResults = [];
+var pollingTimer = null;
+var COLORS = ['#38bdf8','#818cf8','#f472b6','#34d399','#fbbf24','#f87171'];
+
+// ─── Toast ───
+function toast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast ' + (type || 'ok');
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 3000);
+}
 
 // ─── Init ───
-async function init() {
-    await Promise.all([loadModels(), loadVideos(), checkGPU()]);
-}
-async function loadModels() {
-    try {
-        const r = await fetch('/api/models');
-        models = await r.json();
+function init() {
+    fetch('/api/models').then(function(r) { return r.json(); }).then(function(d) {
+        models = d;
         renderModels();
-    } catch(e) { document.getElementById('modelList').innerHTML = '<span style="color:var(--red)">加载失败</span>'; }
-}
-function renderModels() {
-    const el = document.getElementById('modelList');
-    const folders = Object.keys(models);
-    if (folders.length === 0) {
-        el.innerHTML = '<p style="color:var(--yellow);font-size:0.82em;">暂无模型。请将.pt文件放入 webapp/models/&lt;模型名&gt;/ 目录</p>';
-        return;
-    }
-    el.innerHTML = folders.map(f => `
-        <div class="model-folder">
-            <div class="model-folder-title" onclick="toggleFolder(this)">📁 '+f+' ('+models[f].count+')</div>
-            <div class="folder-items">
-                '+models[f].weights.map(w => `
-                    <label class="model-item">
-                        <input type="checkbox" value="${w.path+'" data-folder="'+f+'" data-name="'+w.name+'" onchange="onModelSelect()">
-                        <span>'+w.name+'</span><span class="size">'+w.size_mb+'MB</span>
-                    </label>
-                `).join('')}
-            </div>
-        </div>
-    `).join('');
-}
-async function loadVideos() {
-    try {
-        const r = await fetch('/api/videos');
-        videos = await r.json();
+    }).catch(function(e) { document.getElementById('errBox').style.display='block'; document.getElementById('errBox').textContent='Failed to load models: '+e.message; });
+
+    fetch('/api/videos').then(function(r) { return r.json(); }).then(function(d) {
+        videos = d;
         renderVideos();
-    } catch(e) {}
-}
-function renderVideos() {
-    const el = document.getElementById('videoList');
-    if (videos.length === 0) {
-        el.innerHTML = '<p style="color:var(--text2);font-size:0.82em;">暂无视频。放入 webapp/videos/ 或上传</p>';
-        return;
-    }
-    el.innerHTML = videos.map((v, idx) => `
-        <div class="video-item '+selectedVideo && selectedVideo.path===v.path ? 'active' : ''+'" data-video-idx="'+idx+'">
-            🎬 '+v.name+'
-            <div class="folder-tag">'+v.folder+'/ · '+v.size_mb+'MB</div>
-        </div>
-    `).join('');
-    // 事件委托：点击视频项
-    el.querySelectorAll('.video-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const idx = parseInt(this.dataset.videoIdx);
-            const v = videos[idx];
-            selectVideo(v.path, v.name);
-        });
-    });
-}
-function toggleFolder(el) {
-    const items = el.nextElementSibling;
-    items.style.display = items.style.display === 'none' ? 'block' : 'none';
+    }).catch(function(e) {});
 }
 
-// ─── Video ───
-function selectVideo(path, name) {
-    selectedVideo = {path, name};
-    renderVideos();
-    const preview = document.getElementById('videoPreview');
-    preview.innerHTML = '<video controls src="/video/'+name+'"><source src="/video/"+name+"">无法播放</video>';
+function renderModels() {
+    var el = document.getElementById('modelList');
+    var folders = Object.keys(models);
+    if (!folders.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:0.82em;">No models found</p>'; return; }
+    var h = '';
+    for (var fi = 0; fi < folders.length; fi++) {
+        var f = folders[fi];
+        var info = models[f];
+        h += '<div style="font-size:0.82em;font-weight:700;color:#818cf8;padding:4px 6px;">' + f + ' (' + info.count + ')</div>';
+        for (var wi = 0; wi < info.weights.length; wi++) {
+            var w = info.weights[wi];
+            h += '<label class="model-row"><input type="checkbox" value="' + w.path + '"><span>' + w.name + '</span><span class="sz">' + w.size_mb + 'MB</span></label>';
+        }
+    }
+    el.innerHTML = h;
 }
-async function handleUpload(input) {
-    const file = input.files[0]; if(!file) return;
-    const form = new FormData(); form.append('video', file);
-    toast('上传中...', '');
-    try {
-        const r = await fetch('/api/upload', {method:'POST', body:form});
-        const data = await r.json();
-        if (data.error) { toast(data.error, 'error'); return; }
-        toast('上传成功!', 'success');
-        await loadVideos();
-        selectVideo(data.path, data.name);
-    } catch(e) { toast('上传失败: '+e, 'error'); }
+
+function renderVideos() {
+    var el = document.getElementById('videoList');
+    if (!videos.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:0.82em;">No videos</p>'; return; }
+    var h = '';
+    for (var vi = 0; vi < videos.length; vi++) {
+        var v = videos[vi];
+        var cls = (selectedVideo && selectedVideo.path === v.path) ? ' sel' : '';
+        h += '<div class="video-row' + cls + '" data-idx="' + vi + '">' + v.name + '<div class="tag">' + v.size_mb + 'MB</div></div>';
+    }
+    el.innerHTML = h;
+    // Add click handlers
+    var rows = el.querySelectorAll('.video-row');
+    for (var ri = 0; ri < rows.length; ri++) {
+        rows[ri].addEventListener('click', function() {
+            var idx = parseInt(this.getAttribute('data-idx'));
+            selectVideo(videos[idx]);
+        });
+    }
+}
+
+function selectVideo(v) {
+    selectedVideo = v;
+    renderVideos();
+    document.getElementById('videoPreview').innerHTML = '<video controls src="/video/' + v.name + '"><source src="/video/' + v.name + '"></video>';
+}
+
+function uploadVideo() {
+    var file = document.getElementById('fileInput').files[0];
+    if (!file) return;
+    var form = new FormData();
+    form.append('video', file);
+    toast('Uploading...');
+    fetch('/api/upload', { method:'POST', body:form }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.error) { toast(d.error, 'err'); return; }
+        toast('Uploaded!', 'ok');
+        return fetch('/api/videos');
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        videos = d;
+        renderVideos();
+        if (videos.length) selectVideo(videos[videos.length - 1]);
+    }).catch(function(e) { toast('Upload failed: ' + e.message, 'err'); });
 }
 
 // ─── Detection ───
-function getSelectedModels() {
-    const checks = document.querySelectorAll('#modelList input[type=checkbox]:checked');
-    return Array.from(checks).map(c => c.value);
+function getCheckedModels() {
+    var checks = document.querySelectorAll('#modelList input[type=checkbox]:checked');
+    var paths = [];
+    for (var i = 0; i < checks.length; i++) { paths.push(checks[i].value); }
+    return paths;
 }
 
-async function runDetection() {
-    const modelPaths = getSelectedModels();
-    if (!modelPaths.length) { toast('请选择至少一个模型', 'error'); return; }
-    if (!selectedVideo) { toast('请选择视频', 'error'); return; }
+function startDetection() {
+    var modelPaths = getCheckedModels();
+    if (!modelPaths.length) { toast('Select at least one model', 'err'); return; }
+    if (!selectedVideo) { toast('Select a video first', 'err'); return; }
 
-    const btn = document.getElementById('runBtn');
-    btn.disabled = true; btn.textContent = '⏳ 检测中...';
+    var btn = document.getElementById('runBtn');
+    btn.disabled = true;
+    btn.textContent = 'RUNNING...';
     document.getElementById('progressWrap').style.display = 'block';
-    document.getElementById('progressText').textContent = '启动中...';
-    detectionResults = [];
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressText').textContent = 'Starting...';
     document.getElementById('resultGrid').innerHTML = '';
-    document.getElementById('aiResponse').style.display = 'none';
+    document.getElementById('errBox').style.display = 'none';
 
-    try {
-        addLog('发送检测请求: mode='+document.getElementById('detectMode').value+', models='+modelPaths.length+'', 'info');
-        const r = await fetch('/api/detect', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-                video_path: selectedVideo.path,
-                model_paths: modelPaths,
-                conf: parseFloat(document.getElementById('conf').value),
-                iou: parseFloat(document.getElementById('iou').value),
-                img_size: parseInt(document.getElementById('imgSize').value),
-                mode: document.getElementById('detectMode').value,
-            })
-        });
-        const resp = await r.json();
-        if (resp.error) { addLog('后端错误: '+resp.error, 'err'); toast(resp.error, 'error'); btn.disabled=false; btn.textContent='🚀 开始检测'; return; }
-        addLog('任务已创建: '+resp.task_id+'', 'ok');
-        pollTask(resp.task_id);
-    } catch(e) {
-        addLog('启动失败: '+e.message, 'err');
-        toast('启动失败: '+e, 'error');
-        btn.disabled = false; btn.textContent = '🚀 开始检测';
-    }
+    fetch('/api/detect', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            video_path: selectedVideo.path,
+            model_paths: modelPaths,
+            mode: document.getElementById('detectMode') ? document.getElementById('detectMode').value : 'detect',
+            conf: parseFloat(document.getElementById('conf').value) || 0.25,
+            iou: parseFloat(document.getElementById('iou').value) || 0.7,
+            img_size: parseInt(document.getElementById('imgSize').value) || 640
+        })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.error) { toast(d.error, 'err'); resetBtn(); return; }
+        pollTask(d.task_id);
+    }).catch(function(e) {
+        toast('Request failed: ' + e.message, 'err');
+        resetBtn();
+    });
 }
 
-async function pollTask(taskId, attempts=0) {
-    try {
-        const r = await fetch('/api/task/'+taskId);
-        const task = await r.json();
+function resetBtn() {
+    var btn = document.getElementById('runBtn');
+    btn.disabled = false;
+    btn.textContent = 'START DETECTION';
+    document.getElementById('progressWrap').style.display = 'none';
+}
+
+function pollTask(taskId) {
+    fetch('/api/task/' + taskId).then(function(r) { return r.json(); }).then(function(task) {
         document.getElementById('progressBar').style.width = task.progress + '%';
-        document.getElementById('progressText').textContent = '进度: ' + task.progress + '% | 状态: ' + task.status;
+        document.getElementById('progressText').textContent = 'Progress: ' + task.progress + '% | Status: ' + task.status;
 
         if (task.status === 'running') {
-            if (attempts === 0) addLog('轮询开始: '+taskId+'', 'info');
-            if (attempts > 300) {
-                addLog('超时: 300次轮询无结果', 'err');
-                toast('检测超时，请重试', 'error');
-                document.getElementById('runBtn').disabled = false;
-                document.getElementById('runBtn').textContent = '🚀 开始检测';
-                return;
-            }
-            setTimeout(() => pollTask(taskId, attempts+1), 2000);
+            pollingTimer = setTimeout(function() { pollTask(taskId); }, 2000);
         } else if (task.status === 'done') {
-            detectionResults = task.results || [];
-            const errors = detectionResults.filter(r => r.error).length;
-            addLog('任务完成: ' + detectionResults.length + '个结果, ' + errors + '个错误', errors > 0 ? 'warn' : 'ok');
-            try {
-                for (var ri = 0; ri < detectionResults.length; ri++) {
-                    var r2 = detectionResults[ri];
-                    if (r2.error) addLog('  ' + (r2.weight||r2.model||'?') + ': ERROR - ' + r2.error, 'err');
-                    else addLog('  ' + (r2.weight||r2.model||'?') + ': ' + (r2.total_detections||r2.total_objects||'?') + ' obj, ' + (r2.fps||'?') + ' FPS', 'ok');
-                }
-            } catch(logErr) { addLog('日志记录异常: '+logErr.message, 'err'); }
-            if (detectionResults.length === 0) {
-                addLog('警告: 结果为空', 'warn');
-                toast('检测完成但无结果', 'error');
-            } else {
-                try {
-                    renderResults(detectionResults);
-                    renderComparison(detectionResults);
-                    toast('检测完成!', 'success');
-                } catch(renderErr) {
-                    addLog('渲染失败: '+renderErr.message, 'err');
-                    addLog('Stack: '+renderErr.stack, 'err');
-                    // Fallback: simple text display
-                    const grid = document.getElementById('resultGrid');
-                    grid.innerHTML = detectionResults.map(r =>
-                        '<div class="result-card"><h3>'+ (r.weight||r.model||'?') +'</h3>' +
-                        '<p>检测完成但渲染出错。输出视频: <a href="/output/'+(r.output_video_name||'')+'">'+(r.output_video_name||'无')+'</a></p>' +
-                        '<p>目标数: '+(r.total_objects||r.total_detections||'?')+' | FPS: '+(r.fps||'?')+'</p></div>'
-                    ).join('');
-                    toast('检测完成(简化显示)', 'warn');
-                }
-            }
-            const btn = document.getElementById('runBtn');
-            btn.disabled = false; btn.textContent = '🚀 开始检测';
-            document.getElementById('progressText').textContent = '✅ 检测完成!';
+            resetBtn();
+            document.getElementById('progressText').textContent = 'DONE!';
+            showResults(task.results || []);
         } else {
-            addLog('未知状态: '+task.status+'', 'warn');
-            if (attempts < 5) setTimeout(() => pollTask(taskId, attempts+1), 2000);
-            else toast('未知状态: '+task.status, 'error');
+            document.getElementById('progressText').textContent = 'Unknown status: ' + task.status;
+            pollingTimer = setTimeout(function() { pollTask(taskId); }, 2000);
         }
-    } catch(e) {
-        if (attempts < 3) {
-            setTimeout(() => pollTask(taskId, attempts+1), 3000);
-        } else {
-            toast('轮询失败: '+e.message, 'error');
-            document.getElementById('runBtn').disabled = false;
-            document.getElementById('runBtn').textContent = '🚀 开始检测';
-        }
-    }
+    }).catch(function(e) {
+        document.getElementById('progressText').textContent = 'Poll error: ' + e.message + ' (retrying...)';
+        pollingTimer = setTimeout(function() { pollTask(taskId); }, 3000);
+    });
 }
 
-// ─── Results ───
-function renderResults(results) {
+// ─── Show Results ───
+function showResults(results) {
     var grid = document.getElementById('resultGrid');
-    var html = '';
+    var h = '';
     for (var i = 0; i < results.length; i++) {
         var r = results[i];
         if (r.error) {
-            html += '<div class="result-card"><h3>ERROR: ' + (r.weight||r.model||'?') + '</h3><p style="color:var(--red);">' + r.error + '</p></div>';
+            h += '<div class="result-card"><h3>ERROR: ' + (r.weight||r.model||'?') + '</h3><p style="color:#f87171;">' + r.error + '</p></div>';
             continue;
         }
         var vidTag = '';
         if (r.output_video_name) {
-            vidTag = '<div style="margin-bottom:12px;border-radius:8px;overflow:hidden;background:#000;"><video controls style="width:100%;max-height:300px;" src="/output/' + r.output_video_name + '"><source src="/output/' + r.output_video_name + '" type="video/mp4"></video></div>';
-        }
-        var uniqueTag = '';
-        if (r.mode === 'tracking' && r.unique_by_class) {
-            uniqueTag = '<div style="margin:8px 0;padding:12px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:8px;"><div style="font-size:0.9em;font-weight:700;color:var(--green);margin-bottom:6px;">独立目标数 (跟踪去重) 共 <b>' + r.unique_objects + '</b> 个</div></div>';
+            vidTag = '<div class="out-video"><video controls src="/output/' + r.output_video_name + '"><source src="/output/' + r.output_video_name + '" type="video/mp4"></video></div>';
         }
         var dist = r.class_distribution || {};
-        var classes = Object.keys(dist);
+        var clsKeys = Object.keys(dist);
         var maxCls = 1;
-        for (var j = 0; j < classes.length; j++) { if (dist[classes[j]] > maxCls) maxCls = dist[classes[j]]; }
-        var barHtml = '';
-        for (var j = 0; j < classes.length; j++) {
-            var k = classes[j];
-            var pct = (dist[k] / maxCls * 100).toFixed(0);
-            barHtml += '<div class="bar-chart"><div class="bar-row"><span class="bar-label">' + k + '</span><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + COLORS[j % COLORS.length] + ';">' + dist[k] + '</div></div></div></div>';
+        for (var k = 0; k < clsKeys.length; k++) { if (dist[clsKeys[k]] > maxCls) maxCls = dist[clsKeys[k]]; }
+        var bars = '';
+        for (var k = 0; k < clsKeys.length; k++) {
+            var key = clsKeys[k];
+            var pct = maxCls > 0 ? (dist[key] / maxCls * 100) : 0;
+            bars += '<div class="bar-wrap"><div class="bar-inner"><span class="bar-label">' + key + '</span><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + COLORS[k % COLORS.length] + ';">' + dist[key] + '</div></div></div></div>';
         }
-        html += '<div class="result-card">' +
-            '<h3>' + (r.weight||r.model||'?') + ' <span style="color:var(--text2);font-weight:400;">(' + (r.model||'') + ')</span></h3>' +
-            vidTag + uniqueTag +
-            '<div class="metric-row"><span>总帧数</span><span class="val">' + (r.total_frames||0) + '</span></div>' +
-            '<div class="metric-row"><span>检测框总数</span><span class="val">' + (r.total_detections||r.total_objects||0) + '</span></div>' +
-            '<div class="metric-row"><span>每帧平均</span><span class="val" style="font-size:1.2em;color:var(--green);">' + (r.avg_per_frame||0) + '</span></div>' +
-            '<div class="metric-row"><span>推理耗时</span><span class="val">' + (r.infer_time_ms||0) + ' ms</span></div>' +
-            '<div class="metric-row"><span>推理FPS</span><span class="val">' + (r.fps||0) + '</span></div>' +
-            '<div style="margin-top:12px;font-size:0.82em;color:var(--text2);">类别分布:</div>' + barHtml +
+        h += '<div class="result-card">' +
+            '<h3>' + (r.weight||r.model||'?') + ' <span style="color:#94a3b8;font-weight:400;">(' + (r.model||'') + ')</span></h3>' +
+            vidTag +
+            '<div class="row"><span>Total Frames</span><span class="val">' + (r.total_frames||0) + '</span></div>' +
+            '<div class="row"><span>Total Detections</span><span class="val">' + (r.total_detections||r.total_objects||0) + '</span></div>' +
+            '<div class="row"><span>Avg Per Frame</span><span class="val" style="font-size:1.15em;color:#34d399;">' + (r.avg_per_frame||0) + '</span></div>' +
+            '<div class="row"><span>Inference Time</span><span class="val">' + (r.infer_time_ms||0) + ' ms</span></div>' +
+            '<div class="row"><span>FPS</span><span class="val">' + (r.fps||0) + '</span></div>' +
+            '<div style="margin-top:8px;font-size:0.82em;color:#94a3b8;">Class Distribution:</div>' + bars +
             '</div>';
     }
-    grid.innerHTML = html;
-}
-
-function renderComparison(results) {
-    if (results.length < 2) {
-        document.getElementById('compContent').innerHTML = '<p style="color:var(--text2);">需要至少2个模型才能对比</p>';
-        return;
-    }
-    var valid = results.filter(function(r) { return !r.error; });
-    var html = '<table class="comp-table"><thead><tr><th>指标</th>';
-    for (var i = 0; i < valid.length; i++) {
-        html += '<th>' + (valid[i].weight || valid[i].model || '?') + '</th>';
-    }
-    html += '</tr></thead><tbody>';
-
-    var metrics = [
-        ['total_objects', '检测框总数', false],
-        ['avg_per_frame', '每帧平均目标', false],
-        ['fps', 'FPS', true],
-        ['infer_time_ms', '推理耗时(ms)', false],
-    ];
-    for (var m = 0; m < metrics.length; m++) {
-        var key = metrics[m][0], label = metrics[m][1], higher = metrics[m][2];
-        var vals = valid.map(function(r) { return r[key] || 0; });
-        var best = higher ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
-        html += '<tr><td>' + label + '</td>';
-        for (var j = 0; j < vals.length; j++) {
-            var isBest = Math.abs(vals[j] - best) < 0.01 || (higher ? vals[j] === best : vals[j] === best);
-            var v = vals[j];
-            var displayVal = (typeof v === 'number') ? (v % 1 === 0 ? v : v.toFixed(1)) : v;
-            html += '<td class="' + (isBest ? 'highlight' : '') + '">' + displayVal + '</td>';
-        }
-        html += '</tr>';
-    }
-
-    // Class distribution comparison
-    var allCls = {};
-    for (var i = 0; i < valid.length; i++) {
-        var dist = valid[i].class_distribution || {};
-        for (var k in dist) { allCls[k] = true; }
-    }
-    var clsList = Object.keys(allCls).sort();
-    for (var c = 0; c < clsList.length; c++) {
-        var cls = clsList[c];
-        var clsVals = valid.map(function(r) { return (r.class_distribution || {})[cls] || 0; });
-        var clsBest = Math.max.apply(null, clsVals);
-        html += '<tr><td>' + cls + '</td>';
-        for (var j = 0; j < clsVals.length; j++) {
-            html += '<td class="' + (clsVals[j] === clsBest ? 'highlight' : '') + '">' + clsVals[j] + '</td>';
-        }
-        html += '</tr>';
-    }
-    html += '</tbody></table>';
-
-    // Winner summary
-    var fpsVals = valid.map(function(r) { return r.fps || 0; });
-    var bestFpsIdx = fpsVals.indexOf(Math.max.apply(null, fpsVals));
-    html += '<div style="margin-top:16px;padding:12px;background:rgba(52,211,153,0.08);border-radius:8px;font-size:0.85em;">';
-    html += '<strong>🏆 综合评估:</strong><br>';
-    html += '• 最快推理: <span style="color:var(--green);">' + (valid[bestFpsIdx] ? valid[bestFpsIdx].weight : '?') + '</span> (' + fpsVals[bestFpsIdx].toFixed(1) + ' FPS)<br>';
-    var objVals = valid.map(function(r) { return r.total_objects || r.total_detections || 0; });
-    var bestObjIdx = objVals.indexOf(Math.max.apply(null, objVals));
-    html += '• 最多检出: <span style="color:var(--green);">' + (valid[bestObjIdx] ? valid[bestObjIdx].weight : '?') + '</span> (' + objVals[bestObjIdx] + ' 个)</div>';
-
-    document.getElementById('compContent').innerHTML = html;
-}
-
-// ─── Simple Markdown// ─── Simple Markdown → HTML ───
-function md2html(md) {
-    if (!md) return '';
-    return md
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-        .replace(/\*(.+?)\*/g, '<i>$1</i>')
-        .replace(/^#{3} (.+)$/gm, '<h4 style="margin:12px 0 6px;color:var(--purple);">$1</h4>')
-        .replace(/^#{2} (.+)$/gm, '<h3 style="margin:14px 0 8px;color:var(--blue);">$1</h3>')
-        .replace(/^# (.+)$/gm, '<h2 style="margin:16px 0 8px;color:var(--blue);">$1</h2>')
-        .replace(/^\- (.+)$/gm, '<li>$1</li>')
-        .replace(/(<li>.*<\/li>\n?)+/g, '<ul style="padding-left:20px;margin:6px 0;">$&</ul>')
-        .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/\n/g, '<br>')
-        .replace(/`([^`]+)`/g, '<code style="background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;font-family:Consolas,monospace;">$1</code>');
+    grid.innerHTML = h;
 }
 
 // ─── AI Analysis ───
-async function runAIAnalysis() {
-    const apiKey = document.getElementById('apiKey').value.trim();
-    if (!apiKey) { toast('请填写 DeepSeek API Key', 'error'); return; }
-    if (!detectionResults.length) { toast('请先运行检测', 'error'); return; }
+function runAI() {
+    var apiKey = document.getElementById('apiKey').value.trim();
+    var provider = document.getElementById('aiProvider').value;
+    if (provider !== 'local' && !apiKey) { toast('Please enter API Key', 'err'); return; }
+    if (!detectionResults || !detectionResults.length) { toast('Run detection first', 'err'); return; }
 
-    const respEl = document.getElementById('aiResponse');
+    var respEl = document.getElementById('aiResponse');
     respEl.style.display = 'block';
-    respEl.innerHTML = '⏳ AI 分析中...';
+    respEl.innerHTML = 'Analyzing...';
 
-    try {
-        const r = await fetch('/api/deepseek', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-                api_key: apiKey,
-                model: document.getElementById('aiModel').value,
-                results: detectionResults.map(d => ({
-                    model: d.weight || d.model,
-                    total_objects: d.total_objects,
-                    avg_per_frame: d.avg_per_frame,
-                    fps: d.fps,
-                    infer_time_ms: d.infer_time_ms,
-                    class_distribution: d.class_distribution,
-                })),
-                prompt: document.getElementById('aiPrompt').value,
-            })
-        });
-        const data = await r.json();
-        if (data.error) {
-            respEl.innerHTML = '<span style="color:var(--red);">❌ ' + data.error + '</span>';
-        } else {
-            respEl.innerHTML = '<strong style="font-size:1.05em;color:var(--purple);">🤖 AI 分析:</strong><br><br>' + md2html(data.content || JSON.stringify(data));
-        }
-    } catch(e) {
-        respEl.innerHTML = '<span style="color:var(--red);">请求失败: '+e+'</span>`;
-    }
+    var payload = {
+        provider: provider,
+        api_key: apiKey,
+        model: document.getElementById('aiModel').value,
+        results: detectionResults.map(function(d) {
+            return {
+                model: d.weight || d.model,
+                total_objects: d.total_objects || d.total_detections,
+                avg_per_frame: d.avg_per_frame,
+                fps: d.fps,
+                infer_time_ms: d.infer_time_ms,
+                class_distribution: d.class_distribution,
+            };
+        }),
+        prompt: document.getElementById('aiPrompt').value,
+    };
+
+    fetch('/api/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.error) { respEl.innerHTML = '<span style="color:#f87171;">Error: ' + d.error + '</span>'; return; }
+        respEl.innerHTML = '<strong style="color:#818cf8;">AI (' + d.provider + '):</strong><br><br>' +
+            d.content.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }).catch(function(e) {
+        respEl.innerHTML = '<span style="color:#f87171;">Request failed: ' + e.message + '</span>';
+    });
 }
 
-// ─── Utils ───
-function toast(msg, type) {
-    const el = document.getElementById('toast');
-    el.textContent = msg; el.className = 'toast ' + type; el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3000);
-}
-async function checkGPU() {
-    try {
-        const r = await fetch('/api/detect', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({video_path:'', model_paths:[]})});
-    } catch(e) {}
-    document.getElementById('gpuStatus').textContent = 'GPU: RTX 4060 Ti 8GB';
-}
-
+// ─── Start ───
 init();
 </script>
 </body>

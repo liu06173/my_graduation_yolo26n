@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Training Monitor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#0b0f19;color:#e2e8f0;padding:24px}
+h1{font-size:1.4em;margin-bottom:4px}
+h1 span{background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:#94a3b8;font-size:0.85em;margin-bottom:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.card{background:#1a2235;border:1px solid #2a3550;border-radius:8px;padding:14px;text-align:center}
+.card .val{font-size:1.6em;font-weight:800;color:#38bdf8}
+.card .lbl{font-size:0.75em;color:#94a3b8;margin-top:2px}
+.card .val.green{color:#34d399}
+table{width:100%;border-collapse:collapse;background:#1a2235;border-radius:8px;overflow:hidden;border:1px solid #2a3550;font-size:0.85em}
+th{background:rgba(56,189,248,0.1);padding:10px 12px;text-align:left;color:#38bdf8;font-weight:600;border-bottom:2px solid #2a3550}
+td{padding:8px 12px;border-bottom:1px solid #2a3550}
+tr:last-child td{border-bottom:none}
+tr.best td{background:rgba(52,211,153,0.08)}
+tr.best td:first-child::after{content:' BEST';color:#34d399;font-size:0.75em;font-weight:700}
+.chart{background:#1a2235;border:1px solid #2a3550;border-radius:8px;padding:16px;margin-top:16px}
+.chart h3{font-size:0.9em;color:#38bdf8;margin-bottom:10px}
+canvas{width:100%;max-height:300px}
+</style>
+</head>
+<body>
+<h1><span>P2-Tracking Training Monitor</span></h1>
+<div class="sub">Auto-refresh every 30s | <span id="lastUpdate">--</span></div>
+
+<div class="cards" id="cards"></div>
+<table><thead><tr><th>Epoch</th><th>Time</th><th>mAP@50</th><th>mAP@50-95</th><th>Precision</th><th>Recall</th><th>Box Loss</th><th>Cls Loss</th><th>Val Box</th><th>Val Cls</th><th>LR</th></tr></thead><tbody id="tbody"></tbody></table>
+
+<div class="chart"><h3>mAP Trend</h3><canvas id="chart"></canvas></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"
+  onerror="document.getElementById('chart').parentElement.innerHTML='<p style=color:#94a3b8>Chart.js not loaded - table view above</p>'">
+</script>
+
+<script>
+var TRAIN_CSV = '/api/train_csv';
+
+function format(v, d) { return (typeof v === 'number') ? v.toFixed(d||4) : v; }
+
+function render() {
+    fetch(TRAIN_CSV).then(function(r) { return r.json(); }).then(function(data) {
+        var lines = data.lines;
+        if (!lines || lines.length < 2) return;
+
+        var headers = lines[0].split(',');
+        var rows = [];
+        var bestIdx = 0;
+        var bestMap = -1;
+        for (var i = 1; i < lines.length; i++) {
+            var cols = lines[i].split(',');
+            if (cols.length < 10) continue;
+            var epoch = parseInt(cols[0]);
+            var mAP50 = parseFloat(cols[7]);
+            if (mAP50 > bestMap) { bestMap = mAP50; bestIdx = i - 1; }
+            rows.push(cols);
+        }
+
+        if (!rows.length) return;
+
+        var last = rows[rows.length - 1];
+        var epoch = parseInt(last[0]);
+        var mAP50 = parseFloat(last[7]);
+        var mAP50_95 = parseFloat(last[8]);
+        var precision = parseFloat(last[5]);
+        var recall = parseFloat(last[6]);
+        var boxLoss = parseFloat(last[2]);
+        var clsLoss = parseFloat(last[3]);
+        var elapsed = parseFloat(last[1]);
+        var mins = elapsed / 60;
+        var remaining = epoch > 0 ? (mins / epoch) * (200 - epoch) : 0;
+
+        // Update cards
+        document.getElementById('cards').innerHTML =
+            '<div class="card"><div class="val green">' + epoch + ' / 200</div><div class="lbl">Current Epoch</div></div>' +
+            '<div class="card"><div class="val">' + mAP50.toFixed(4) + '</div><div class="lbl">mAP@50</div></div>' +
+            '<div class="card"><div class="val">' + mAP50_95.toFixed(4) + '</div><div class="lbl">mAP@50-95</div></div>' +
+            '<div class="card"><div class="val">' + precision.toFixed(4) + '</div><div class="lbl">Precision</div></div>' +
+            '<div class="card"><div class="val">' + recall.toFixed(4) + '</div><div class="lbl">Recall</div></div>' +
+            '<div class="card"><div class="val">' + mins.toFixed(0) + ' min</div><div class="lbl">Elapsed</div></div>' +
+            '<div class="card"><div class="val">' + remaining.toFixed(0) + ' min</div><div class="lbl">Est. Remaining</div></div>' +
+            '<div class="card"><div class="val">' + boxLoss.toFixed(4) + '</div><div class="lbl">Box Loss</div></div>' +
+            '<div class="card"><div class="val">' + clsLoss.toFixed(4) + '</div><div class="lbl">Cls Loss</div></div>' +
+            '<div class="card"><div class="val" style="font-size:1em;">' + (data.gpu || '?') + '</div><div class="lbl">GPU</div></div>';
+
+        // Update table
+        var tbody = document.getElementById('tbody');
+        var h = '';
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var isBest = (i === bestIdx);
+            h += '<tr' + (isBest ? ' class=best' : '') + '>' +
+                '<td>' + r[0] + '</td><td>' + (parseFloat(r[1])/60).toFixed(0) + 'm</td>' +
+                '<td>' + parseFloat(r[7]).toFixed(4) + '</td><td>' + parseFloat(r[8]).toFixed(4) + '</td>' +
+                '<td>' + parseFloat(r[5]).toFixed(4) + '</td><td>' + parseFloat(r[6]).toFixed(4) + '</td>' +
+                '<td>' + parseFloat(r[2]).toFixed(4) + '</td><td>' + parseFloat(r[3]).toFixed(4) + '</td>' +
+                '<td>' + parseFloat(r[9]).toFixed(4) + '</td><td>' + parseFloat(r[10]).toFixed(4) + '</td>' +
+                '<td>' + parseFloat(r[13]).toFixed(6) + '</td></tr>';
+        }
+        tbody.innerHTML = h;
+
+        // Update chart
+        if (typeof Chart !== 'undefined') {
+            var ctx = document.getElementById('chart').getContext('2d');
+            var labels = []; var map50 = []; var map95 = [];
+            for (var i = 0; i < rows.length; i++) { labels.push(rows[i][0]); map50.push(parseFloat(rows[i][7])); map95.push(parseFloat(rows[i][8])); }
+            if (window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'mAP@50', data: map50, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)', tension: 0.3, fill: true },
+                        { label: 'mAP@50-95', data: map95, borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)', tension: 0.3, fill: true }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { min: 0, grid: { color: '#2a3550' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: '#2a3550' }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { labels: { color: '#e2e8f0' } } }
+                }
+            });
+        }
+
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    }).catch(function(e) {
+        document.getElementById('lastUpdate').textContent = 'Error: ' + e.message;
+    });
+}
+
+render();
+setInterval(render, 30000);
+</script>
+</body>
+</html>

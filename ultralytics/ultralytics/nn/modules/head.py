@@ -20,7 +20,7 @@ from .conv import Conv, DWConv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = "OBB", "Classify", "Detect", "Pose", "RTDETRDecoder", "Segment", "YOLOEDetect", "YOLOESegment", "v10Detect"
+__all__ = "OBB", "Classify", "Detect", "DecoupledDetect", "Pose", "RTDETRDecoder", "Segment", "YOLOEDetect", "YOLOESegment", "v10Detect"
 
 
 class Detect(nn.Module):
@@ -249,6 +249,35 @@ class Detect(nn.Module):
     def fuse(self) -> None:
         """Remove the one2many head for inference optimization."""
         self.cv2 = self.cv3 = None
+
+
+class DecoupledDetect(Detect):
+    """Decoupled detection head with attention-guided feature split for cls/reg branches.
+
+    Adds a lightweight channel attention gate before the classification and regression
+    branches, allowing the network to route features differently for each task.
+    Reference: YOLOv12 paper (Scientific Reports 2025).
+    """
+
+    def __init__(self, nc: int = 80, reg_max=16, end2end=False, ch: tuple = ()):
+        super().__init__(nc, reg_max, end2end, ch)
+        c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))
+        # Attention gate: learns separate feature importance for cls vs reg
+        self.gate_cv2 = nn.ModuleList(nn.Sequential(Conv(x, x // 4, 1), Conv(x // 4, x, 1), nn.Sigmoid()) for x in ch)
+        self.gate_cv3 = nn.ModuleList(nn.Sequential(Conv(x, x // 4, 1), Conv(x // 4, x, 1), nn.Sigmoid()) for x in ch)
+
+    def forward_head(
+        self, x: list[torch.Tensor], box_head: torch.nn.Module = None, cls_head: torch.nn.Module = None
+    ) -> dict[str, torch.Tensor]:
+        if box_head is None or cls_head is None:
+            return dict()
+        bs = x[0].shape[0]
+        # Apply attention gates before branch processing
+        x_box = [x[i] * self.gate_cv2[i](x[i]) for i in range(self.nl)]
+        x_cls = [x[i] * self.gate_cv3[i](x[i]) for i in range(self.nl)]
+        boxes = torch.cat([box_head[i](x_box[i]).view(bs, 4 * self.reg_max, -1) for i in range(self.nl)], dim=-1)
+        scores = torch.cat([cls_head[i](x_cls[i]).view(bs, self.nc, -1) for i in range(self.nl)], dim=-1)
+        return dict(boxes=boxes, scores=scores, feats=x)
 
 
 class Segment(Detect):

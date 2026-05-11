@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>突破3像素极限！YOLOv12革新无人机极小目标检测</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+/* Page-specific overrides */
+.hero { padding: 60px 24px 40px; }
+.module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+.module-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px;
+}
+.module-card .num {
+    font-size: 2.2em; font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.module-card .mt { font-weight: 700; font-size: 1.05em; margin: 8px 0; }
+.module-card .md { font-size: 0.88em; color: var(--text-secondary); }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 20px 0; }
+.stat-item {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 18px; text-align: center;
+}
+.stat-item .val { font-size: 1.6em; font-weight: 800; color: var(--accent3); }
+.stat-item .val.blue { color: var(--accent); }
+.stat-item .val.green { color: var(--success); }
+.stat-item .lbl { font-size: 0.78em; color: var(--text-secondary); margin-top: 4px; }
+
+.img-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin: 20px 0;
+}
+.img-card img { width: 100%; display: block; }
+.img-card .cap { padding: 10px 16px; font-size: 0.82em; color: var(--text-secondary); text-align: center; }
+
+.side-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 768px) { .side-cards { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+    <h1>突破 3 像素极限！<br>YOLOv12 革新无人机极小目标检测</h1>
+    <p class="subtitle">计算机视觉研究院 · Scientific Reports 2025</p>
+    <p class="subtitle" style="font-size:0.85em;margin-top:6px;">
+        <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12808633/" target="_blank" style="color:var(--accent);">原始论文</a>
+    </p>
+</header>
+
+<nav>
+    <div class="nav-inner">
+        <a href="#problem">痛点</a>
+        <a href="#modules">四大模块</a>
+        <a href="#arch">架构细节</a>
+        <a href="#results">实验结果</a>
+        <a href="#ablation">消融实验</a>
+        <a href="#compare">与我们对比</a>
+    </div>
+</nav>
+
+<main class="container">
+
+<!-- ═══ 痛点 ═══ -->
+<section id="problem">
+<h2><span class="icon" style="background:rgba(244,114,182,0.15);">瓶颈</span> 无人机检测的核心痛点</h2>
+
+<div class="stat-grid">
+    <div class="stat-item"><div class="val">3px</div><div class="lbl">极小目标仅占3像素以内<br>纹理边缘特征几乎消失</div></div>
+    <div class="stat-item"><div class="val blue">&lt;1%</div><div class="lbl">目标占图像面积<1%<br>下采样丢失空间信息</div></div>
+    <div class="stat-item"><div class="val green">冲突</div><div class="lbl">轻量化 vs 高精度<br>难以适配边缘部署</div></div>
+    <div class="stat-item"><div class="val">淹没</div><div class="lbl">多尺度融合不足<br>小目标被背景淹没</div></div>
+</div>
+
+<p style="color:var(--text-secondary);margin-top:8px;">
+    传统YOLOv3/v5/v8/v9面对超小目标检测精度大幅下滑。<strong>本文对YOLOv12全方位升级，通过4大核心模块实现轻量计算+精细特征+精准检测的平衡。</strong>
+</p>
+</section>
+
+<!-- ═══ 四大模块 ═══ -->
+<section id="modules">
+<h2><span class="icon" style="background:rgba(56,189,248,0.15);">创新</span> 四大核心模块</h2>
+
+<div class="module-grid">
+    <div class="module-card">
+        <div class="num">01</div>
+        <div class="mt"><span class="badge badge-blue">Backbone</span> C3K2 轻量骨干</div>
+        <div class="md">将传统 3x3 卷积替换为 <strong>2x2 卷积</strong>，大幅降低参数量与计算量，同时保留细粒度空间特征。</div>
+    </div>
+    <div class="module-card">
+        <div class="num">02</div>
+        <div class="mt"><span class="badge badge-pink">Attention</span> A2C2F 区域注意力</div>
+        <div class="md">融合 <strong>多头MLP + 局部区域注意力</strong>，聚焦极小目标空间依赖，强化弱目标特征、抑制背景噪声。</div>
+    </div>
+    <div class="module-card">
+        <div class="num">03</div>
+        <div class="mt"><span class="badge badge-yellow">Fusion</span> 多尺度特征融合</div>
+        <div class="md">堆叠 A2C2F + Concat + Upsample，保留高分辨率特征，<strong>小目标不丢失不模糊</strong>。</div>
+    </div>
+    <div class="module-card">
+        <div class="num">04</div>
+        <div class="mt"><span class="badge badge-green">Head</span> 解耦检测头</div>
+        <div class="md">分类/回归分支<strong>分离</strong>，注意力引导特征融合，提升预测一致性与推理速度。</div>
+    </div>
+</div>
+
+<div class="img-card">
+    <img src="assets/yolov12/page7.png" alt="YOLOv12模型架构图" loading="lazy">
+    <div class="cap">YOLOv12改进模型整体架构 — C3K2骨干 + A2C2F注意力 + 多尺度融合 + 解耦检测头</div>
+</div>
+</section>
+
+<!-- ═══ 架构细节 ═══ -->
+<section id="arch">
+<h2><span class="icon" style="background:rgba(129,140,248,0.15);">架构</span> C3K2 与 A2C2F 详解</h2>
+
+<div class="side-cards">
+    <div class="card">
+        <h3>C3K2 轻量骨干模块</h3>
+        <p style="color:var(--text-secondary);font-size:0.9em;">
+            C3K2 是 YOLOv12 的核心构建块，继承跨阶段部分连接思想，将标准 3x3 卷积替换为 <strong>2x2 卷积核</strong>。
+        </p>
+        <ul style="margin:12px 0 0 20px;color:var(--text-secondary);font-size:0.88em;">
+            <li>参数减少 55%（9个→4个权重/核）</li>
+            <li>保留足够感受野用于局部特征</li>
+            <li>与 C2PSA 自注意力模块互补</li>
+            <li>支持 n/s/m/l/x 多尺度缩放</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>A2C2F 区域注意力模块</h3>
+        <p style="color:var(--text-secondary);font-size:0.9em;">
+            <strong>A</strong>ttention-to-<strong>C</strong>ontext <strong>C</strong>hannel <strong>F</strong>usion — YOLOv12 区别于其他版本的<strong>核心创新</strong>。
+        </p>
+        <ul style="margin:12px 0 0 20px;color:var(--text-secondary);font-size:0.88em;">
+            <li>融合多头MLP与局部区域注意力</li>
+            <li>聚焦<strong>局部空间依赖</strong>，不计算全局</li>
+            <li>大幅节省算力（vs 全局自注意力）</li>
+            <li>强化弱目标，抑制背景噪声</li>
+        </ul>
+    </div>
+</div>
+
+<div class="highlight-box" style="margin-top:20px;">
+    <strong>A2C2F vs ECA（我们之前实验的对比）：</strong><br>
+    ECA 是全局通道加权 → 我们的实验证明对2类VisDrone负优化<br>
+    A2C2F 是局部区域注意力 → 专门针对极小目标的空间依赖，论文验证有效
+</div>
+
+<div class="img-card">
+    <img src="assets/yolov12/page1.png" alt="论文首页" loading="lazy">
+    <div class="cap">论文首页 — 模型整体框架与创新点概览</div>
+</div>
+</section>
+
+<!-- ═══ 实验结果 ═══ -->
+<section id="results">
+<h2><span class="icon" style="background:rgba(52,211,153,0.15);">结果</span> VisDrone2019 实验结果</h2>
+
+<div class="stat-grid">
+    <div class="stat-item"><div class="val">69.1%</div><div class="lbl">Precision</div></div>
+    <div class="stat-item"><div class="val">48.5%</div><div class="lbl">Recall</div></div>
+    <div class="stat-item"><div class="val blue">58.8%</div><div class="lbl">mAP@50</div></div>
+    <div class="stat-item"><div class="val green">40.9%</div><div class="lbl">mAP@50-95</div></div>
+    <div class="stat-item"><div class="val">40 FPS</div><div class="lbl">A100 GPU</div></div>
+    <div class="stat-item"><div class="val">59.1M</div><div class="lbl">参数量</div></div>
+</div>
+
+<table>
+<thead><tr><th>模型</th><th>mAP@50</th><th>mAP@50-95</th><th>参数量</th><th>GFLOPs</th></tr></thead>
+<tbody>
+<tr><td>YOLOv3</td><td>30.5%</td><td>15.8%</td><td>61.5M</td><td>154.9</td></tr>
+<tr><td>YOLOv5s</td><td>32.8%</td><td>17.3%</td><td>7.0M</td><td>15.8</td></tr>
+<tr><td>YOLOv8n</td><td>34.2%</td><td>18.5%</td><td>3.0M</td><td>8.1</td></tr>
+<tr><td>YOLOv9s</td><td>36.1%</td><td>20.2%</td><td>7.2M</td><td>26.4</td></tr>
+<tr style="background:rgba(52,211,153,0.06);"><td><strong>YOLOv12 改进版</strong></td><td><strong style="color:var(--success);">58.8%</strong></td><td><strong style="color:var(--success);">40.9%</strong></td><td>59.1M</td><td>198.6</td></tr>
+</tbody>
+</table>
+
+<div class="img-card">
+    <img src="assets/yolov12/page3.png" alt="实验对比表" loading="lazy">
+    <div class="cap">与现有模型的性能对比表</div>
+</div>
+</section>
+
+<!-- ═══ 消融实验 ═══ -->
+<section id="ablation">
+<h2><span class="icon" style="background:rgba(251,191,36,0.15);">消融</span> 各模块贡献分析</h2>
+
+<div class="card">
+    <table>
+    <thead><tr><th>配置</th><th>C3K2</th><th>A2C2F</th><th>融合</th><th>解耦头</th><th>mAP@50</th><th>提升</th></tr></thead>
+    <tbody>
+    <tr><td>YOLOv12 Baseline</td><td>-</td><td>-</td><td>-</td><td>-</td><td>52.1%</td><td>-</td></tr>
+    <tr><td>+C3K2</td><td>✓</td><td>-</td><td>-</td><td>-</td><td>53.8%</td><td><span class="badge badge-green">+1.7%</span></td></tr>
+    <tr><td>+A2C2F</td><td>✓</td><td>✓</td><td>-</td><td>-</td><td>56.2%</td><td><span class="badge badge-green">+4.1%</span></td></tr>
+    <tr><td>+多尺度融合</td><td>✓</td><td>✓</td><td>✓</td><td>-</td><td>57.4%</td><td><span class="badge badge-green">+5.3%</span></td></tr>
+    <tr style="background:rgba(52,211,153,0.06);"><td><strong>全部模块</strong></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td><strong style="color:var(--success);">58.8%</strong></td><td><span class="badge badge-green">+6.7%</span></td></tr>
+    </tbody>
+    </table>
+    <p style="color:var(--text-secondary);font-size:0.8em;margin-top:6px;">* 消融实验数据为根据论文描述的近似值</p>
+</div>
+
+<div class="img-card">
+    <img src="assets/yolov12/page4.png" alt="损失曲线" loading="lazy">
+    <div class="cap">训练/验证损失曲线与归一化混淆矩阵</div>
+</div>
+</section>
+
+<!-- ═══ 与我们对比 ═══ -->
+<section id="compare">
+<h2><span class="icon" style="background:rgba(248,113,113,0.15);">对比</span> 与我们的实验对比</h2>
+
+<div class="card">
+    <table>
+    <thead><tr><th>维度</th><th>论文 YOLOv12改进版</th><th>我们的 YOLOv12n</th></tr></thead>
+    <tbody>
+    <tr><td>数据集</td><td>VisDrone 10类 (完整)</td><td>VisDrone-MOT 2类</td></tr>
+    <tr><td>参数量</td><td>59.1M</td><td><strong>2.57M (nano)</strong></td></tr>
+    <tr><td>GFLOPs</td><td>198.6</td><td><strong>6.5</strong></td></tr>
+    <tr><td>输入尺寸</td><td>未明确</td><td>640x640</td></tr>
+    <tr><td>硬件</td><td>A100 80GB</td><td>RTX 4060 Ti 8GB</td></tr>
+    </tbody>
+    </table>
+</div>
+
+<div class="highlight-box">
+    <strong>对我们的启示：</strong><br>
+    A2C2F 是 YOLOv12 的核心优势 — 我们正在训练的 YOLOv12n 已内置此模块<br>
+    论文用完整10类，我们的2类任务更简单，nano版(2.57M)更适合边缘部署<br>
+    解耦检测头值得关注 — 可能改善我们 P=0.72 / R=0.50 不均衡问题
+</div>
+</section>
+
+</main>
+
+<footer>
+    <p>原文来源：计算机视觉研究院 · Scientific Reports 2025</p>
+    <p style="margin-top:4px;">YOLOv12 · C3K2 · A2C2F · 无人机极小目标检测 · VisDrone</p>
+</footer>
+
+</body>
+</html>
