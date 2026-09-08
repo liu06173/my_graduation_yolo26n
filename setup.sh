@@ -3,6 +3,7 @@
 #  YOLO26n + VisDrone2019 一键环境配置脚本
 #  适用: Linux / macOS / Windows(WSL)
 #  用法: bash setup.sh
+# 001
 # ============================================================
 set -e
 
