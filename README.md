@@ -11,6 +11,7 @@
 - **一键操作**: train / pause / resume / eval / export
 - **Cloud Studio 支持**: 三步启动，GPU云端训练
 - **bypy 数据获取**: 百度网盘命令行下载
+- **测试
 
 ---
 
