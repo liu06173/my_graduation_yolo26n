@@ -1,10 +1,10 @@
-# YOLO26n + VisDrone2019 无人机地面目标跟踪系数
+# YOLO26n + VisDrone2019 无人机地面目标跟踪系数xxx
 
 基于 **Ultralytics YOLO26n** 的无人机地面目标检测与跟踪系统，使用天津大学开源的 **VisDrone2019** 数据集。
 
 ## 项目特性
 
-- **双模型架构**: Baseline检测模型 + TrackingYOLO26 JDE跟踪模型
+- **双模型架构**: Baseline检测模型 + TrackingYOLO26 JDE跟踪模型111
 - **最新YOLO26n**: NMS-Free端到端检测，MuSGD优化器
 - **JDE跟踪**: 检测+Re-ID嵌入一体化，端到端多目标跟踪
 - **VisDrone2019**: 10类无人机视角目标，支持DET和MOT格式
